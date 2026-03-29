@@ -1,0 +1,44 @@
+# Module PowrSync - English translations
+
+PowrSyncSetup=POwR Connect Setup
+PowrConnectCredentials=Login credentials
+PowrConnectEmail=POwR Connect Email
+PowrConnectEmailHelp=Your login email for powr-connect.shop
+PowrConnectPassword=POwR Connect Password
+PowrConnectPasswordHelp=Leave empty to keep current password
+PowrConnectMapping=Supplier mapping
+PowrConnectSupplier=Dolibarr Supplier
+PowrConnectSupplierHelp=Select the POwR Connect supplier record in Dolibarr
+PowrSyncAdvanced=Advanced settings
+PowrSyncDelay=Delay between requests
+PowrSyncDelayHelp=Wait time between each product (500ms minimum to avoid overloading the site)
+PowrSyncConfigOk=Connected with account %s
+
+PowrSyncTitle=POwR Connect Price Sync
+PowrSyncNotConfigured=The POwR Connect module is not yet configured.
+GoToSetup=Go to setup
+SyncAllPrices=Sync all prices
+PowrSyncConfirmAll=You are about to sync all POwR Connect supplier prices. This may take several minutes. Continue?
+PowrSyncDone=%s product(s) processed
+PowrSyncUpdated=Price updated for %s (ref. %s)
+PowrSyncUpToDate=Price already up to date for %s
+PowrSyncNoProducts=No products with a POwR Connect supplier reference found.
+PowrSyncProductCount=%s product(s) with POwR Connect reference
+PowrSyncProductNotFound=Product not found in POwR Connect list
+PowrSyncDbError=Database error
+
+PowrRef=POwR Connect Ref.
+CurrentBuyPrice=Current buy price
+LastSyncPrice=Last scraped price
+LastSync=Last sync
+Sync=Sync
+Never=Never
+
+PowrSyncLog=Sync history
+OldPrice=Old price
+NewPrice=New price
+Variation=Variation
+
+PowrLogUpdated=Updated
+PowrLogUpToDate=Up to date
+PowrLogError=Error
