@@ -162,7 +162,7 @@ class modPowrSync extends DolibarrModules
 				0,                                    // list (hidden in lists)
 				'',                                   // help
 				'',                                   // computed
-				$this->db->getDefaultEntity(),        // entity
+				$conf->entity,                        // entity
 				0                                     // langfile
 			);
 		}
