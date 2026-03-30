@@ -22,14 +22,14 @@ class modPowrSync extends DolibarrModules
 		$this->numero = 680001;
 
 		$this->rights_class   = 'powrsync';
-		$this->family         = 'products';
+		$this->family         = 'Les Métiers du Bâtiment';
 		$this->module_position = '90';
 		$this->name           = preg_replace('/^mod/i', '', get_class($this));
 		$this->description    = "Synchronisation des prix d'achat depuis POwR Connect";
 		$this->descriptionlong = "Parcourt les produits Dolibarr ayant une référence fournisseur POwR Connect, ".
 			"récupère les prix actuels par scraping authentifié et met à jour les prix d'achat si nécessaire.";
-		$this->editor_name    = 'Votre Société';
-		$this->editor_url     = 'https://votresociete.fr';
+		$this->editor_name    = 'Les Métiers du Bâtiment';
+		$this->editor_url     = 'https://lesmetiersdubatiment.fr';
 		$this->version        = '1.0.0';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto          = 'object_powrsync@powrsync';
