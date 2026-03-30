@@ -47,17 +47,17 @@ class modPowrSync extends DolibarrModules
 		// Cron job automatique (toutes les 24h)
 		$this->cronjobs = array(
 			0 => array(
-				'id'         => 1,
-				'unit'       => 'h',
-				'value'      => 24,
-				'jobtype'    => 'method',
-				'class'      => '/powrsync/class/powrsync.class.php',
-				'objectname' => 'PowrSync',
-				'method'     => 'syncAllProducts',
-				'parameters' => '',
-				'comment'    => 'Synchronisation prix POwR Connect',
-				'status'     => 0,
-				'test'       => 'isModEnabled("powrsync")',
+				'label'         => 'PowrSyncSyncAllProducts',
+				'jobtype'       => 'method',
+				'class'         => '/powrsync/class/powrsync.class.php',
+				'objectname'    => 'PowrSync',
+				'method'        => 'syncAllProducts',
+				'parameters'    => '',
+				'comment'       => 'Synchronisation prix POwR Connect',
+				'frequency'     => 24,
+				'unitfrequency' => 3600,
+				'status'        => 0,
+				'test'          => 'isModEnabled("powrsync")',
 			),
 		);
 
