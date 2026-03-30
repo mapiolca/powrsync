@@ -8,7 +8,11 @@ if (!defined('NOREQUIRESOC')) {
 	define('NOREQUIRESOC', '1');
 }
 
-require '../../../main.inc.php';
+// Dolibarr environment
+if (is_file('../../main.inc.php')) require('../../main.inc.php');
+elseif (is_file('../../../main.inc.php')) require('../../../main.inc.php');
+else die('Include of main fails');
+
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 
