@@ -42,15 +42,15 @@ class PowrConnectScraper
 	}
 
 	/**
-	 * Authentification — POST les identifiants sur /login
+	 * Authentification — POST les identifiants sur /connexion
 	 * Retourne 1 si succès, -1 si échec
 	 */
 	public function login($email, $password)
 	{
 		$this->initCurl();
 
-		// Étape 1 : charger la page login pour récupérer le token CSRF
-		curl_setopt($this->ch, CURLOPT_URL, $this->baseUrl.'/login');
+		// Étape 1 : charger la page connexion pour récupérer le token CSRF
+		curl_setopt($this->ch, CURLOPT_URL, $this->baseUrl.'/connexion');
 		curl_setopt($this->ch, CURLOPT_HTTPGET, true);
 		$html = curl_exec($this->ch);
 
@@ -64,16 +64,18 @@ class PowrConnectScraper
 		// Étape 2 : soumettre le formulaire
 		usleep($this->requestDelay);
 		curl_setopt_array($this->ch, array(
-			CURLOPT_URL        => $this->baseUrl.'/login',
+			CURLOPT_URL        => $this->baseUrl.'/connexion',
 			CURLOPT_POST       => true,
 			CURLOPT_POSTFIELDS => http_build_query(array(
-				'_username'   => $email,
-				'_password'   => $password,
-				'_csrf_token' => $csrfToken,
+				'username'  => $email,
+				'password'  => $password,
+				'csrf'      => $csrfToken,
+				'_action'   => 'login',
 			)),
 		));
 
 		curl_exec($this->ch);
+		$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
 		$finalUrl = curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL);
 
 		if (curl_errno($this->ch)) {
@@ -81,9 +83,9 @@ class PowrConnectScraper
 			return -1;
 		}
 
-		// Login réussi = redirigé hors de /login
-		if (strpos($finalUrl, '/login') !== false) {
-			$this->error = 'Identifiants incorrects ou structure de login modifiée';
+		// Login réussi = redirigé hors de /connexion, ou HTTP 302/303
+		if (strpos($finalUrl, '/connexion') !== false && $httpCode >= 400) {
+			$this->error = 'Identifiants incorrects ou structure de login modifiée (HTTP '.$httpCode.')';
 			return -1;
 		}
 
@@ -133,15 +135,17 @@ class PowrConnectScraper
 	}
 
 	/**
-	 * Extrait le token CSRF de la page login
-	 * ⚠ À adapter selon le HTML réel (inspecter avec F12)
+	 * Extrait le token CSRF de la page connexion
+	 * Cherche un input hidden name="csrf"
 	 */
 	private function extractCsrfToken($html)
 	{
-		if (preg_match('/name=["\']_csrf_token["\'][^>]+value=["\']([^"\']+)["\']/', $html, $m)) {
+		// Format : <input type="hidden" name="csrf" value="TOKEN">
+		if (preg_match('/name=["\']csrf["\'][^>]+value=["\']([^"\']+)["\']/', $html, $m)) {
 			return $m[1];
 		}
-		if (preg_match('/name=["\']csrf["\'][^>]+value=["\']([^"\']+)["\']/', $html, $m)) {
+		// Format inversé : value="TOKEN" ... name="csrf"
+		if (preg_match('/value=["\']([^"\']+)["\'][^>]+name=["\']csrf["\']/', $html, $m)) {
 			return $m[1];
 		}
 		return '';
