@@ -31,7 +31,7 @@ class modPowrSync extends DolibarrModules
 		$this->editor_url     = 'https://votresociete.fr';
 		$this->version        = '1.0.0';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
-		$this->picto          = 'price';
+		$this->picto          = 'object_powrsync@powrsync';
 
 		$this->dirs = array("/powrsync/temp");
 
