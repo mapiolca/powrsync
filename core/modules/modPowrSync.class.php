@@ -16,6 +16,7 @@ class modPowrSync extends DolibarrModules
 		global $langs, $conf;
 
 		$this->db = $db;
+		parent::__construct($db);
 
 		// ID unique — à réserver sur https://wiki.dolibarr.org/index.php/List_of_modules_id
 		$this->numero = 680001;
@@ -31,7 +32,7 @@ class modPowrSync extends DolibarrModules
 		$this->editor_url     = 'https://votresociete.fr';
 		$this->version        = '1.0.0';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
-		$this->picto          = 'price';
+		$this->picto          = 'object_powrsync@powrsync';
 
 		$this->dirs = array("/powrsync/temp");
 
@@ -47,17 +48,17 @@ class modPowrSync extends DolibarrModules
 		// Cron job automatique (toutes les 24h)
 		$this->cronjobs = array(
 			0 => array(
-				'id'         => 1,
-				'unit'       => 'h',
-				'value'      => 24,
-				'jobtype'    => 'method',
-				'class'      => '/powrsync/class/powrsync.class.php',
-				'objectname' => 'PowrSync',
-				'method'     => 'syncAllProducts',
-				'parameters' => '',
-				'comment'    => 'Synchronisation prix POwR Connect',
-				'status'     => 0,
-				'test'       => 'isModEnabled("powrsync")',
+				'label'         => 'PowrSyncSyncAllProducts',
+				'jobtype'       => 'method',
+				'class'         => '/powrsync/class/powrsync.class.php',
+				'objectname'    => 'PowrSync',
+				'method'        => 'syncAllProducts',
+				'parameters'    => '',
+				'comment'       => 'Synchronisation prix POwR Connect',
+				'frequency'     => 24,
+				'unitfrequency' => 3600,
+				'status'        => 0,
+				'test'          => 'isModEnabled("powrsync")',
 			),
 		);
 
