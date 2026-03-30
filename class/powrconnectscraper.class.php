@@ -92,20 +92,26 @@ class PowrConnectScraper
 	}
 
 	/**
-	 * Récupère le prix HT d'un produit par sa référence POwR (ex: OND0791)
-	 * Retourne float ou false si non trouvé
+	 * Récupère le prix HT d'un produit via son URL directe sur le site fournisseur
+	 *
+	 * @param  string $powrRef  Référence fournisseur (pour les messages d'erreur)
+	 * @param  string $url      URL complète de la fiche produit sur le site fournisseur
+	 * @return float|false      Prix HT ou false si non trouvé
 	 */
-	public function getPrice($powrRef)
+	public function getPrice($powrRef, $url = '')
 	{
 		if (!$this->loggedIn) {
 			$this->error = 'Non authentifié';
 			return false;
 		}
 
+		if (empty($url)) {
+			$this->error = 'URL produit non renseignée pour '.$powrRef;
+			return false;
+		}
+
 		usleep($this->requestDelay);
 
-		// ⚠ URL à valider en inspectant le site réel (peut être /produits/ref ou /p/ref, etc.)
-		$url = $this->baseUrl.'/produit/'.urlencode(strtolower($powrRef));
 		curl_setopt_array($this->ch, array(
 			CURLOPT_URL  => $url,
 			CURLOPT_HTTPGET => true,
