@@ -16,6 +16,7 @@ class modPowrSync extends DolibarrModules
 		global $langs, $conf;
 
 		$this->db = $db;
+		parent::__construct($db);
 
 		// ID unique — à réserver sur https://wiki.dolibarr.org/index.php/List_of_modules_id
 		$this->numero = 680001;
