@@ -8,12 +8,25 @@ if (!defined('NOREQUIRESOC')) {
 	define('NOREQUIRESOC', '1');
 }
 
-// Dolibarr environment
-if (is_file('../../main.inc.php')) require('../../main.inc.php');
-elseif (is_file('../../../main.inc.php')) require('../../../main.inc.php');
-else die('Include of main fails');
-
+// EN: Load Dolibarr environment with fallback paths.
+$res = 0;
+if (!$res && file_exists(__DIR__.'/../main.inc.php')) {
+		$res = require_once __DIR__.'/../main.inc.php';
+}
+if (!$res && file_exists(__DIR__.'/../../main.inc.php')) {
+		$res = require_once __DIR__.'/../../main.inc.php';
+}
+if (!$res && file_exists(__DIR__.'/../../../main.inc.php')) {
+		$res = require_once __DIR__.'/../../../main.inc.php';
+}
+if (!$res) {
+die('Include of main fails');
+}
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+require_once DOL_DOCUMENT_ROOT.'/cron/class/cronjob.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 
 $langs->loadLangs(array('admin', 'powrsync@powrsync'));
