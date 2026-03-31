@@ -5,6 +5,8 @@
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
@@ -346,6 +348,45 @@ function getLastLogsByProduct($db, $fkSoc)
 }
 
 /**
+ * Returns the default VAT rate for a supplier according to its country.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$supplierId
+ * @return	float
+ */
+function getSupplierDefaultVatRate($db, $supplierId)
+{
+	global $mysoc;
+
+	static $vatCache = array();
+
+	$supplierId = (int) $supplierId;
+	if ($supplierId <= 0) {
+		return 0.0;
+	}
+
+	if (isset($vatCache[$supplierId])) {
+		return (float) $vatCache[$supplierId];
+	}
+
+	$thirdparty = new Societe($db);
+	$fetchResult = $thirdparty->fetch($supplierId);
+	if ($fetchResult <= 0) {
+		$vatCache[$supplierId] = 0.0;
+		return 0.0;
+	}
+
+	$vatTx = get_default_tva($mysoc, $thirdparty);
+	if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
+		$vatTx = 20.0;
+	}
+
+	$vatCache[$supplierId] = (float) price2num($vatTx);
+
+	return (float) $vatCache[$supplierId];
+}
+
+/**
  * Synchronize one supplier product price with POwR Connect.
  *
  * @param	DoliDB				$db
@@ -384,6 +425,7 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 	$productFournisseur = new ProductFournisseur($db);
 	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
 	$qty = max(1, (float) $productRow['quantity']);
+	$vatTx = getSupplierDefaultVatRate($db, $fkSoc);
 
 	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
 	// FR: Toujours renseigner les IDs de contexte avant update pour éviter le fallback delete/insert avec fk_product=0/fk_soc=0.
@@ -413,7 +455,7 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 		$user,
 		'HT',
 		(int) $fkSoc,
-		0,
+		$vatTx,
 		$powrRef,
 		0,
 		0,
