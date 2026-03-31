@@ -15,6 +15,8 @@ class PowrConnectScraper
 	private $loggedIn     = false;
 	private $requestDelay = 800000; // µs entre requêtes (0.8 s)
 	private $userAgent    = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
+	private $lastCsrfRaw  = '';
+	private $loginState   = 'none';
 
 	public $error = '';
 
@@ -106,9 +108,11 @@ class PowrConnectScraper
 	public function login($email, $password)
 	{
 		$this->debug('login() — début, user='.$email);
+		$this->loginState = 'none';
 
 		// Vérifie si on est déjà connecté via les cookies existants
 		if ($this->isSessionActive()) {
+			$this->loginState = 'already_connected';
 			return 1;
 		}
 
@@ -139,25 +143,72 @@ class PowrConnectScraper
 		}
 		$this->debug('CSRF cookie value : '.($csrfValue ? substr($csrfValue, 0, 30).'…' : '(non trouvé)'));
 
-		// Étape 2 : POST vers l'endpoint Remix data
-		// URL exacte : /connexion?redirect=%2F&_data=routes%2Fconnexion
+		// EN: Step 2, discover login form action + hidden fields to avoid hardcoded Remix route.
+		// FR: Étape 2, détecter l'action du formulaire + champs cachés pour éviter une route Remix figée.
+		$formConfig = $this->extractLoginFormConfig($html);
+		$formNotFound = empty($formConfig['action']) && empty($formConfig['hidden']);
+		if ($formNotFound) {
+			// EN: If no login form is present, session may already be authenticated.
+			// FR: Si le formulaire de connexion est absent, la session peut déjà être authentifiée.
+			$this->debug('No login form detected on /connexion, re-check active session before POST login');
+			if ($this->isSessionActive()) {
+				$this->debug('Active session confirmed after /connexion GET, skip login POST');
+				$this->loginState = 'already_connected';
+				return 1;
+			}
+			// EN: If login form is absent, do not force a POST login (can trigger HTTP 500 upstream).
+			// FR: Si le formulaire est absent, ne pas forcer un POST login (peut déclencher un HTTP 500 côté fournisseur).
+			// EN: Continue flow and let product URL access confirm whether session is usable.
+			// FR: Continuer le flux et laisser l'accès URL produit confirmer si la session est exploitable.
+			$this->loggedIn = true;
+			$this->loginState = 'already_connected';
+			$this->debug('No login form and inactive /account/profile check: skip login POST, continue with product URL test');
+			return 1;
+		}
+
+		$postUrl = $formConfig['action'];
+		if (empty($postUrl)) {
+			$postUrl = $this->baseUrl.'/connexion';
+		}
+
+		$postFields = $formConfig['hidden'];
+		if (!is_array($postFields)) {
+			$postFields = array();
+		}
+
+		// EN: Always enforce required credentials fields.
+		// FR: Toujours forcer les champs d'identifiants requis.
+		$postFields['username'] = $email;
+		$postFields['password'] = $password;
+		if (!isset($postFields['stayConnected'])) {
+			$postFields['stayConnected'] = 'on';
+		}
+		if (!isset($postFields['_action']) || $postFields['_action'] === '') {
+			$postFields['_action'] = 'login';
+		}
+
+		// EN: If csrf is absent from form, fallback to cookie-derived value.
+		// FR: Si csrf est absent du formulaire, fallback via la valeur issue du cookie.
+		if (empty($postFields['csrf']) && !empty($csrfValue)) {
+			$postFields['csrf'] = $csrfValue;
+		}
+
 		usleep($this->requestDelay);
-		$postUrl = $this->baseUrl.'/connexion?redirect=%2F&_data=routes%2Fconnexion';
 		$this->debug('POST '.$postUrl.' avec username='.$email);
 
 		// Ne pas suivre les redirections pour capturer la réponse 204
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, false);
 		curl_setopt($this->ch, CURLOPT_HEADER, true);
+		curl_setopt($this->ch, CURLOPT_HTTPHEADER, array(
+			'Content-Type: application/x-www-form-urlencoded',
+			'Origin: '.$this->baseUrl,
+			'Referer: '.$loginUrl,
+			'X-Requested-With: XMLHttpRequest',
+		));
 		curl_setopt_array($this->ch, array(
 			CURLOPT_URL        => $postUrl,
 			CURLOPT_POST       => true,
-			CURLOPT_POSTFIELDS => http_build_query(array(
-				'csrf'          => $csrfValue,
-				'_action'       => 'login',
-				'username'      => $email,
-				'password'      => $password,
-				'stayConnected' => 'on',
-			)),
+			CURLOPT_POSTFIELDS => http_build_query($postFields),
 		));
 
 		$response = curl_exec($this->ch);
@@ -168,9 +219,25 @@ class PowrConnectScraper
 		$this->debug('POST login → HTTP '.$httpCode);
 		$this->debug('Headers réponse (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
 
+		// EN: Retry once with raw csrf cookie value when server returns HTTP 500.
+		// FR: Refaire 1 tentative avec la valeur brute du cookie csrf si le serveur renvoie HTTP 500.
+		if ($httpCode >= 500 && !empty($this->lastCsrfRaw) && (!isset($postFields['csrf']) || $postFields['csrf'] !== $this->lastCsrfRaw)) {
+			$this->debug('Retry login POST with raw csrf cookie value');
+			$postFields['csrf'] = $this->lastCsrfRaw;
+			usleep($this->requestDelay);
+			curl_setopt($this->ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
+			$response = curl_exec($this->ch);
+			$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
+			$headerSize = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
+			$headers = substr($response, 0, $headerSize);
+			$this->debug('POST login retry (csrf raw) → HTTP '.$httpCode);
+			$this->debug('Headers retry (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
+		}
+
 		// Restaurer les options par défaut
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($this->ch, CURLOPT_HEADER, false);
+		curl_setopt($this->ch, CURLOPT_HTTPHEADER, array());
 
 		if (curl_errno($this->ch)) {
 			$this->error = 'Erreur cURL login : '.curl_error($this->ch);
@@ -187,6 +254,7 @@ class PowrConnectScraper
 				$this->debug('Cookie auth_token_sso après login : '.($hasAuth ? 'oui' : 'non'));
 				if ($hasAuth || strpos($headers, 'x-remix-redirect') !== false) {
 					$this->loggedIn = true;
+					$this->loginState = 'login_ok';
 					$this->debug('Login réussi — session active');
 					return 1;
 				}
@@ -194,9 +262,79 @@ class PowrConnectScraper
 		}
 
 		// Échec
+		$this->loginState = 'login_failed';
 		$this->error = 'Échec login HTTP '.$httpCode.' — vérifier les identifiants';
 		$this->debug('Échec login : HTTP '.$httpCode);
 		return -1;
+	}
+
+	/**
+	 * EN: Return latest login state (none|already_connected|login_ok|login_failed).
+	 * FR: Retourne l'état du dernier login (none|already_connected|login_ok|login_failed).
+	 *
+	 * @return string
+	 */
+	public function getLoginState()
+	{
+		return $this->loginState;
+	}
+
+	/**
+	 * EN: Extract login endpoint and hidden fields from the /connexion HTML form.
+	 * FR: Extrait l'endpoint de login et les champs cachés du formulaire HTML /connexion.
+	 *
+	 * @param	string $html Login page HTML
+	 * @return	array{action:string,hidden:array<string,string>}
+	 */
+	private function extractLoginFormConfig($html)
+	{
+		$result = array(
+			'action' => '',
+			'hidden' => array(),
+		);
+
+		if (empty($html)) {
+			return $result;
+		}
+
+		libxml_use_internal_errors(true);
+		$dom = new DOMDocument();
+		$loaded = $dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
+		libxml_clear_errors();
+		if (!$loaded) {
+			$this->debug('extractLoginFormConfig : DOM load failed, fallback to hardcoded route');
+			return $result;
+		}
+
+		$xpath = new DOMXPath($dom);
+		$forms = $xpath->query('//form[.//input[@name="username"] and .//input[@name="password"]]');
+		if (!$forms || !$forms->length) {
+			$this->debug('extractLoginFormConfig : login form not found, fallback to hardcoded route');
+			return $result;
+		}
+
+		$form = $forms->item(0);
+		$action = trim((string) $form->getAttribute('action'));
+		if (!empty($action)) {
+			if (strpos($action, 'http://') === 0 || strpos($action, 'https://') === 0) {
+				$result['action'] = $action;
+			} elseif (strpos($action, '/') === 0) {
+				$result['action'] = $this->baseUrl.$action;
+			} else {
+				$result['action'] = $this->baseUrl.'/'.$action;
+			}
+		}
+
+		foreach ($xpath->query('.//input[@type="hidden"]', $form) as $hiddenInput) {
+			$name = (string) $hiddenInput->getAttribute('name');
+			if ($name === '') {
+				continue;
+			}
+			$result['hidden'][$name] = (string) $hiddenInput->getAttribute('value');
+		}
+
+		$this->debug('extractLoginFormConfig : action='.(empty($result['action']) ? '(vide)' : $result['action']).', hidden='.count($result['hidden']));
+		return $result;
 	}
 
 	/**
@@ -260,6 +398,8 @@ class PowrConnectScraper
 	 */
 	private function extractCsrfFromCookieJar()
 	{
+		$this->lastCsrfRaw = '';
+
 		if (!file_exists($this->cookieFile)) {
 			$this->debug('extractCsrfFromCookieJar : fichier cookie absent');
 			return '';
@@ -280,6 +420,7 @@ class PowrConnectScraper
 				$cookieNames[] = $parts[5];
 				if ($parts[5] === 'csrf') {
 					$rawValue = urldecode($parts[6]);
+					$this->lastCsrfRaw = $rawValue;
 					// Le cookie Remix est signé : base64(json_token).signature
 					// Il faut décoder pour extraire le token brut
 					$token = $this->decodeRemixSignedCookie($rawValue);
