@@ -7,7 +7,6 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
@@ -56,7 +55,7 @@ if ($search_ref_fourn !== '') {
 if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
-		$productsToSync = getProductsWithPowrRef($db, $fkSoc);
+		$productsToSync = getProductsWithPowrRef($db, $fkSoc, 'p.ref', 'ASC', '', '', true);
 		$updatedCount = 0;
 		$errorMessages = array();
 
@@ -319,9 +318,10 @@ $db->close();
  * @param	string	$sortorder
  * @param	string	$searchRefProduct
  * @param	string	$searchRefFourn
+ * @param	bool	$requireSupplierUrl
  * @return	array|false
  */
-function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC', $searchRefProduct = '', $searchRefFourn = '')
+function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC', $searchRefProduct = '', $searchRefFourn = '', $requireSupplierUrl = false)
 {
 	$sortFieldMap = array(
 		'p.ref' => 'p.ref',
@@ -348,6 +348,10 @@ function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
+	if ($requireSupplierUrl) {
+		$sql .= " AND ef.supplier_url IS NOT NULL";
+		$sql .= " AND TRIM(ef.supplier_url) <> ''";
+	}
 	if ($searchRefProduct !== '') {
 		$sql .= " AND p.ref LIKE '%".$db->escape($searchRefProduct)."%'";
 	}
@@ -468,8 +472,6 @@ function getLastLogsByProduct($db, $fkSoc)
  */
 function getSupplierDefaultVatRate($db, $supplierId)
 {
-	global $mysoc;
-
 	static $vatCache = array();
 
 	$supplierId = (int) $supplierId;
@@ -481,19 +483,12 @@ function getSupplierDefaultVatRate($db, $supplierId)
 		return (float) $vatCache[$supplierId];
 	}
 
-	$thirdparty = new Societe($db);
-	$fetchResult = $thirdparty->fetch($supplierId);
-	if ($fetchResult <= 0) {
-		$vatCache[$supplierId] = 0.0;
-		return 0.0;
+	$configuredVatRaw = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
+	if (trim((string) $configuredVatRaw) === '') {
+		return null;
 	}
 
-	$vatTx = get_default_tva($mysoc, $thirdparty);
-	if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
-		$vatTx = 20.0;
-	}
-
-	$vatCache[$supplierId] = (float) price2num($vatTx);
+	$vatCache[$supplierId] = (float) price2num($configuredVatRaw);
 
 	return (float) $vatCache[$supplierId];
 }
@@ -512,6 +507,8 @@ function getSupplierDefaultVatRate($db, $supplierId)
  */
 function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, $login, $password)
 {
+	global $langs;
+
 	$powrRef = $productRow['ref_fourn'];
 	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
 	$productId = (int) $productRow['fk_product'];
@@ -538,6 +535,11 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
 	$qty = max(1, (float) $productRow['quantity']);
 	$vatTx = getSupplierDefaultVatRate($db, $fkSoc);
+	if ($vatTx === null) {
+		$scraper->error = $langs->trans('PowrSyncDefaultVatRateRequired');
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, null, $scraper->error);
+		return -1;
+	}
 
 	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
 	// FR: Toujours renseigner les IDs de contexte avant update pour éviter le fallback delete/insert avec fk_product=0/fk_soc=0.
@@ -581,9 +583,63 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 		return -1;
 	}
 
+	$forceVatResult = forceSupplierPriceVatRate($db, $priceLineId, $productId, $fkSoc, $powrRef, $qty, $vatTx);
+	if ($forceVatResult < 0) {
+		$scraper->error = $db->lasterror();
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, $newPrice, $scraper->error);
+		return -1;
+	}
+
 	insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_OK, $currentPrice, $newPrice, '');
 
 	return 1;
+}
+
+/**
+ * Force VAT rate value on supplier price row after update.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$priceLineId
+ * @param	int		$productId
+ * @param	int		$fkSoc
+ * @param	string	$powrRef
+ * @param	float	$qty
+ * @param	float	$vatTx
+ * @return	int
+ */
+function forceSupplierPriceVatRate($db, $priceLineId, $productId, $fkSoc, $powrRef, $qty, $vatTx)
+{
+	$priceLineId = (int) $priceLineId;
+	if ($priceLineId <= 0) {
+		$sqlFind = "SELECT pfp.rowid";
+		$sqlFind .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+		$sqlFind .= " WHERE pfp.fk_product = ".((int) $productId);
+		$sqlFind .= " AND pfp.fk_soc = ".((int) $fkSoc);
+		$sqlFind .= " AND pfp.ref_fourn = '".$db->escape($powrRef)."'";
+		$sqlFind .= " AND pfp.quantity = ".price2num($qty);
+		$sqlFind .= " ORDER BY pfp.rowid DESC";
+		$sqlFind .= " LIMIT 1";
+
+		$resqlFind = $db->query($sqlFind);
+		if (!$resqlFind) {
+			return -1;
+		}
+		$objFind = $db->fetch_object($resqlFind);
+		$priceLineId = !empty($objFind) ? (int) $objFind->rowid : 0;
+		if ($resqlFind) {
+			$db->free($resqlFind);
+		}
+	}
+
+	if ($priceLineId <= 0) {
+		return -1;
+	}
+
+	$sqlUpdate = "UPDATE ".MAIN_DB_PREFIX."product_fournisseur_price";
+	$sqlUpdate .= " SET tva_tx = ".price2num($vatTx);
+	$sqlUpdate .= " WHERE rowid = ".$priceLineId;
+
+	return $db->query($sqlUpdate) ? 1 : -1;
 }
 
 /**

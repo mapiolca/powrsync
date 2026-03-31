@@ -12,6 +12,9 @@ PowrConnectSupplierHelp=Select the POwR Connect supplier record in Dolibarr
 PowrSyncAdvanced=Advanced settings
 PowrSyncDelay=Delay between requests
 PowrSyncDelayHelp=Wait time between each product (500ms minimum to avoid overloading the site)
+PowrSyncDefaultVatRate=Default VAT rate
+PowrSyncDefaultVatRateHelp=VAT rate (excl. tax) applied on each supplier purchase price update.
+PowrSyncDefaultVatRateRequired=The "Default VAT rate" setting is required. Please configure it in PowrSync setup.
 PowrSyncConfigOk=Connected with account %s
 
 PowrSyncTestConnection=Connection test

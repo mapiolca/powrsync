@@ -92,6 +92,14 @@ if ($action == 'update') {
 	$password    = GETPOST('POWRSYNC_PASSWORD', 'password');
 	$supplierId  = GETPOST('POWRSYNC_SUPPLIER_ID', 'int');
 	$delayMs     = GETPOST('POWRSYNC_DELAY_MS', 'int');
+	$defaultVatRateRaw = GETPOST('POWRSYNC_DEFAULT_VAT_RATE', 'alphanohtml');
+	$defaultVatRate = price2num($defaultVatRateRaw);
+	if ($defaultVatRate < 0) {
+		$defaultVatRate = 0;
+	}
+	if ($defaultVatRate > 100) {
+		$defaultVatRate = 100;
+	}
 
 	dolibarr_set_const($db, 'POWRSYNC_LOGIN', $login, 'chaine', 0, '', $conf->entity);
 
@@ -102,6 +110,7 @@ if ($action == 'update') {
 
 	dolibarr_set_const($db, 'POWRSYNC_SUPPLIER_ID', (int) $supplierId, 'chaine', 0, '', $conf->entity);
 	dolibarr_set_const($db, 'POWRSYNC_DELAY_MS', max(500, (int) $delayMs), 'chaine', 0, '', $conf->entity);
+	dolibarr_set_const($db, 'POWRSYNC_DEFAULT_VAT_RATE', (string) $defaultVatRate, 'chaine', 0, '', $conf->entity);
 
 	setEventMessages($langs->trans('SetupSaved'), null, 'mesgs');
 	header('Location: '.$_SERVER['PHP_SELF']);
@@ -139,6 +148,7 @@ if ($resql) {
 $currentLogin      = getDolGlobalString('POWRSYNC_LOGIN');
 $currentSupplierId = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 $currentDelayMs    = getDolGlobalInt('POWRSYNC_DELAY_MS') ?: 1000;
+$currentDefaultVatRate = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
 $hasPassword       = !empty(getDolGlobalString('POWRSYNC_PASSWORD'));
 
 print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
@@ -200,6 +210,14 @@ print '<td>';
 print '<input type="number" name="POWRSYNC_DELAY_MS" value="'.((int) $currentDelayMs).'" min="500" max="10000" step="100"> ms';
 print '</td>';
 print '<td class="opacitymedium">'.$langs->trans('PowrSyncDelayHelp').'</td>';
+print '</tr>';
+
+print '<tr class="oddeven">';
+print '<td>'.$langs->trans('PowrSyncDefaultVatRate').'</td>';
+print '<td>';
+print '<input type="number" name="POWRSYNC_DEFAULT_VAT_RATE" value="'.dol_escape_htmltag($currentDefaultVatRate).'" min="0" max="100" step="0.01"> %';
+print '</td>';
+print '<td class="opacitymedium">'.$langs->trans('PowrSyncDefaultVatRateHelp').'</td>';
 print '</tr>';
 
 print '</table>';
