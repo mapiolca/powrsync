@@ -88,7 +88,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 // VUE
 // =========================================================================
 
-llxHeader($langs->trans('PowrSyncTitle'), '');
+llxHeader('', $langs->trans('PowrSyncTitle'), '');
 
 //print load_fiche_titre($langs->trans('PowrSyncTitle'), '', 'price');
 print_barre_liste($langs->trans('PowrSync'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'fa fa-sun', 0, '', '', $limit);
