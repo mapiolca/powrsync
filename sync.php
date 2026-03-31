@@ -6,6 +6,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
 
 $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
@@ -34,12 +35,32 @@ $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
 if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
-		$ret = $scraper->syncAllPrices();
-		if ($ret < 0) {
-			setEventMessages($scraper->error, $scraper->errors, 'errors');
+		$productsToSync = getProductsWithPowrRef($db, $fkSoc);
+		$updatedCount = 0;
+		$errorMessages = array();
+
+		if ($productsToSync === false) {
+			setEventMessages($langs->trans('PowrSyncDbError').': '.$db->lasterror(), null, 'errors');
 		} else {
-			setEventMessages($langs->trans('PowrSyncDone', $ret), null, 'mesgs');
+			$retLogin = $scraper->login(
+				getDolGlobalString('POWRSYNC_LOGIN'),
+				dol_decode(getDolGlobalString('POWRSYNC_PASSWORD'))
+			);
+			if ($retLogin < 0) {
+				setEventMessages($scraper->error, null, 'errors');
+			} else {
+				foreach ($productsToSync as $productToSync) {
+					$syncStatus = syncOneSupplierProductPrice($db, $scraper, $productToSync, $fkSoc, $user);
+					if ($syncStatus > 0) {
+						$updatedCount++;
+					} elseif ($syncStatus < 0) {
+						$errorMessages[] = $productToSync['ref_fourn'].' : '.$scraper->error;
+					}
+				}
+				setEventMessages($langs->trans('PowrSyncDone', $updatedCount), $errorMessages, empty($errorMessages) ? 'mesgs' : 'warnings');
+			}
 		}
+		$scraper->close();
 		header('Location: '.$_SERVER['PHP_SELF']);
 		exit;
 	}
@@ -66,7 +87,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 			if ($ret2 < 0) {
 				setEventMessages($scraper->error, null, 'errors');
 			} else {
-				$ret2 = $scraper->syncOneProduct($found, $user);
+				$ret2 = syncOneSupplierProductPrice($db, $scraper, $found, $fkSoc, $user);
 				if ($ret2 == 1) {
 					setEventMessages($langs->trans('PowrSyncUpdated', $found['ref_product'], $found['ref_fourn']), null, 'mesgs');
 				} elseif ($ret2 == 2) {
@@ -76,6 +97,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 				}
 			}
 		}
+		$scraper->close();
 		header('Location: '.$_SERVER['PHP_SELF']);
 		exit;
 	}
@@ -273,7 +295,7 @@ $db->close();
  */
 function getProductsWithPowrRef($db, $fkSoc)
 {
-	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, ef.supplier_url";
+	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
@@ -295,6 +317,7 @@ function getProductsWithPowrRef($db, $fkSoc)
 			'label_product' => $obj->label_product,
 			'ref_fourn' => $obj->ref_fourn,
 			'unitprice' => (float) $obj->unitprice,
+			'quantity' => (float) $obj->quantity,
 			'supplier_url' => $obj->supplier_url,
 		);
 	}
@@ -335,4 +358,57 @@ function getLastLogsByProduct($db, $fkSoc)
 		}
 	}
 	return $result;
+}
+
+/**
+ * Synchronize one supplier product price with POwR Connect.
+ *
+ * @param	DoliDB				$db
+ * @param	PowrConnectScraper	$scraper
+ * @param	array				$productRow
+ * @param	int					$fkSoc
+ * @param	User				$user
+ * @return	int
+ */
+function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user)
+{
+	$powrRef = $productRow['ref_fourn'];
+	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
+
+	if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+		$scraper->error = 'URL fournisseur non valide pour '.$powrRef;
+		return -1;
+	}
+
+	$newPrice = $scraper->getPrice($powrRef, $url);
+	if ($newPrice === false) {
+		return -1;
+	}
+
+	$currentPrice = (float) $productRow['unitprice'];
+	if (abs($newPrice - $currentPrice) <= 0.001) {
+		return 2;
+	}
+
+	$productFournisseur = new ProductFournisseur($db);
+	$res = $productFournisseur->update_buyprice(
+		max(1, (float) $productRow['quantity']),
+		(float) $newPrice,
+		$user,
+		'HT',
+		(int) $fkSoc,
+		0,
+		$powrRef,
+		0,
+		0,
+		0,
+		0
+	);
+
+	if ($res < 0) {
+		$scraper->error = !empty($productFournisseur->error) ? $productFournisseur->error : $db->lasterror();
+		return -1;
+	}
+
+	return 1;
 }
