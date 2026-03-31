@@ -139,25 +139,50 @@ class PowrConnectScraper
 		}
 		$this->debug('CSRF cookie value : '.($csrfValue ? substr($csrfValue, 0, 30).'…' : '(non trouvé)'));
 
-		// Étape 2 : POST vers l'endpoint Remix data
-		// URL exacte : /connexion?redirect=%2F&_data=routes%2Fconnexion
+		// EN: Step 2, discover login form action + hidden fields to avoid hardcoded Remix route.
+		// FR: Étape 2, détecter l'action du formulaire + champs cachés pour éviter une route Remix figée.
+		$formConfig = $this->extractLoginFormConfig($html);
+
+		$postUrl = $formConfig['action'];
+		if (empty($postUrl)) {
+			$postUrl = $this->baseUrl.'/connexion?redirect=%2F&_data=routes%2Fconnexion';
+		}
+
+		$postFields = $formConfig['hidden'];
+		if (!is_array($postFields)) {
+			$postFields = array();
+		}
+
+		// EN: Always enforce required credentials fields.
+		// FR: Toujours forcer les champs d'identifiants requis.
+		$postFields['username'] = $email;
+		$postFields['password'] = $password;
+		if (!isset($postFields['stayConnected'])) {
+			$postFields['stayConnected'] = 'on';
+		}
+
+		// EN: If csrf is absent from form, fallback to cookie-derived value.
+		// FR: Si csrf est absent du formulaire, fallback via la valeur issue du cookie.
+		if (empty($postFields['csrf']) && !empty($csrfValue)) {
+			$postFields['csrf'] = $csrfValue;
+		}
+
 		usleep($this->requestDelay);
-		$postUrl = $this->baseUrl.'/connexion?redirect=%2F&_data=routes%2Fconnexion';
 		$this->debug('POST '.$postUrl.' avec username='.$email);
 
 		// Ne pas suivre les redirections pour capturer la réponse 204
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, false);
 		curl_setopt($this->ch, CURLOPT_HEADER, true);
+		curl_setopt($this->ch, CURLOPT_HTTPHEADER, array(
+			'Content-Type: application/x-www-form-urlencoded',
+			'Origin: '.$this->baseUrl,
+			'Referer: '.$loginUrl,
+			'X-Requested-With: XMLHttpRequest',
+		));
 		curl_setopt_array($this->ch, array(
 			CURLOPT_URL        => $postUrl,
 			CURLOPT_POST       => true,
-			CURLOPT_POSTFIELDS => http_build_query(array(
-				'csrf'          => $csrfValue,
-				'_action'       => 'login',
-				'username'      => $email,
-				'password'      => $password,
-				'stayConnected' => 'on',
-			)),
+			CURLOPT_POSTFIELDS => http_build_query($postFields),
 		));
 
 		$response = curl_exec($this->ch);
@@ -171,6 +196,7 @@ class PowrConnectScraper
 		// Restaurer les options par défaut
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($this->ch, CURLOPT_HEADER, false);
+		curl_setopt($this->ch, CURLOPT_HTTPHEADER, array());
 
 		if (curl_errno($this->ch)) {
 			$this->error = 'Erreur cURL login : '.curl_error($this->ch);
@@ -197,6 +223,64 @@ class PowrConnectScraper
 		$this->error = 'Échec login HTTP '.$httpCode.' — vérifier les identifiants';
 		$this->debug('Échec login : HTTP '.$httpCode);
 		return -1;
+	}
+
+	/**
+	 * EN: Extract login endpoint and hidden fields from the /connexion HTML form.
+	 * FR: Extrait l'endpoint de login et les champs cachés du formulaire HTML /connexion.
+	 *
+	 * @param	string $html Login page HTML
+	 * @return	array{action:string,hidden:array<string,string>}
+	 */
+	private function extractLoginFormConfig($html)
+	{
+		$result = array(
+			'action' => '',
+			'hidden' => array(),
+		);
+
+		if (empty($html)) {
+			return $result;
+		}
+
+		libxml_use_internal_errors(true);
+		$dom = new DOMDocument();
+		$loaded = $dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
+		libxml_clear_errors();
+		if (!$loaded) {
+			$this->debug('extractLoginFormConfig : DOM load failed, fallback to hardcoded route');
+			return $result;
+		}
+
+		$xpath = new DOMXPath($dom);
+		$forms = $xpath->query('//form[.//input[@name="username"] and .//input[@name="password"]]');
+		if (!$forms || !$forms->length) {
+			$this->debug('extractLoginFormConfig : login form not found, fallback to hardcoded route');
+			return $result;
+		}
+
+		$form = $forms->item(0);
+		$action = trim((string) $form->getAttribute('action'));
+		if (!empty($action)) {
+			if (strpos($action, 'http://') === 0 || strpos($action, 'https://') === 0) {
+				$result['action'] = $action;
+			} elseif (strpos($action, '/') === 0) {
+				$result['action'] = $this->baseUrl.$action;
+			} else {
+				$result['action'] = $this->baseUrl.'/'.$action;
+			}
+		}
+
+		foreach ($xpath->query('.//input[@type="hidden"]', $form) as $hiddenInput) {
+			$name = (string) $hiddenInput->getAttribute('name');
+			if ($name === '') {
+				continue;
+			}
+			$result['hidden'][$name] = (string) $hiddenInput->getAttribute('value');
+		}
+
+		$this->debug('extractLoginFormConfig : action='.(empty($result['action']) ? '(vide)' : $result['action']).', hidden='.count($result['hidden']));
+		return $result;
 	}
 
 	/**
