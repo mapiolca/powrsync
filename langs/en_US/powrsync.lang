@@ -61,3 +61,6 @@ PowrSyncAboutResources=Resources
 PowrSyncAboutDocumentation=Documentation
 PowrSyncAboutSupport=Support
 PowrSyncAboutContact=Contact
+PowrSyncAbout=About PowrSync
+PowrSyncAboutDocumentationLink=Read the README file
+PowrSyncAboutSupportValue=Contact your integrator for support.
