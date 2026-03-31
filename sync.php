@@ -486,6 +486,12 @@ function getSupplierDefaultVatRate($db, $supplierId)
 		return (float) $vatCache[$supplierId];
 	}
 
+	$configuredVat = (float) price2num(getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE'));
+	if ($configuredVat > 0) {
+		$vatCache[$supplierId] = $configuredVat;
+		return $configuredVat;
+	}
+
 	$thirdparty = new Societe($db);
 	$fetchResult = $thirdparty->fetch($supplierId);
 	if ($fetchResult <= 0) {

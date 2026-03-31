@@ -247,13 +247,15 @@ class PowrSync extends CommonObject
 
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
-		$vatTx = 0.0;
+		$vatTx = (float) price2num(getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE'));
 
-		$thirdparty = new Societe($this->db);
-		if ($thirdparty->fetch((int) $supplierId) > 0) {
-			$vatTx = (float) price2num(get_default_tva($GLOBALS['mysoc'], $thirdparty));
-			if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
-				$vatTx = 20.0;
+		if ($vatTx <= 0) {
+			$thirdparty = new Societe($this->db);
+			if ($thirdparty->fetch((int) $supplierId) > 0) {
+				$vatTx = (float) price2num(get_default_tva($GLOBALS['mysoc'], $thirdparty));
+				if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
+					$vatTx = 20.0;
+				}
 			}
 		}
 

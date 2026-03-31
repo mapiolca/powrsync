@@ -2,6 +2,8 @@
 
 PowrSyncSupplierUrlLabel=URL del prodotto fornitore
 PowrSyncSupplierUrlTooltip=Inserire l'URL della scheda prodotto nello shop del fornitore
+PowrSyncDefaultVatRate=Aliquota IVA predefinita
+PowrSyncDefaultVatRateHelp=Aliquota IVA (imponibile) applicata durante l'aggiornamento dei prezzi fornitore. Lasciare 0 per usare il rilevamento automatico.
 
 PowrSyncAboutPage=Informazioni sul modulo PowrSync
 PowrSyncAboutGeneral=Informazioni generali

@@ -12,6 +12,8 @@ PowrConnectSupplierHelp=Sélectionner la fiche fournisseur POwR Connect dans Dol
 PowrSyncAdvanced=Paramètres avancés
 PowrSyncDelay=Délai entre requêtes
 PowrSyncDelayHelp=Temps d'attente entre chaque produit (500ms minimum pour ne pas surcharger le site)
+PowrSyncDefaultVatRate=Taux TVA par défaut
+PowrSyncDefaultVatRateHelp=Taux de TVA HT appliqué lors de la mise à jour du prix fournisseur. Laisser 0 pour utiliser le taux détecté automatiquement.
 PowrSyncConfigOk=Connecté avec le compte %s
 
 PowrSyncTestConnection=Test de connexion
