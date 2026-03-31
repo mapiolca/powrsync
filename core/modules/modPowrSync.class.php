@@ -136,8 +136,6 @@ class modPowrSync extends DolibarrModules
 
 	public function init($options = '')
 	{
-		global $conf;
-
 		$result = $this->_init(array(), $options);
 		if ($result < 0) {
 			return -1;
@@ -146,12 +144,11 @@ class modPowrSync extends DolibarrModules
 		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
-		$entity = (!empty($conf->entity) ? (int) $conf->entity : 1);
 		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
 		if (!isset($existing['supplier_url'])) {
 			$extrafields->addExtraField(
 				'supplier_url',                     // attrname
-				'Supplier product URL',             // label
+				'PowrSyncSupplierUrlLabel',         // label
 				'url',                               // type
 				100,                                  // pos
 				'',                                   // size
@@ -162,13 +159,20 @@ class modPowrSync extends DolibarrModules
 				'',                                   // param
 				1,                                    // alwayseditable
 				'',                                   // perms
-				0,                                    // list (hidden in lists)
-				'',                                   // help
+				1,                                    // list
+				'PowrSyncSupplierUrlTooltip',         // help
 				'',                                   // computed
-				$entity,                              // entity
-				0                                     // langfile
+				0,                                    // entity (all entities)
+				'powrsync@powrsync'                   // langfile
 			);
 		}
+
+		// Ensure visibility is active for all entities
+		$sql = "UPDATE ".MAIN_DB_PREFIX."extrafields";
+		$sql .= " SET enabled = '1', entity = 0";
+		$sql .= " WHERE name = 'supplier_url'";
+		$sql .= " AND elementtype = 'product_fournisseur_price'";
+		$this->db->query($sql);
 
 		return $result;
 	}
