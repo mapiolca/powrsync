@@ -20,9 +20,9 @@ if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 	accessforbidden();
 }
 
-$action     = GETPOST('action', 'aZ09');
-$productId  = GETPOST('productid', 'int');
-$confirm    = GETPOST('confirm', 'alpha');
+$action            = GETPOST('action', 'aZ09');
+$supplierPriceLineId = GETPOST('lineid', 'int');
+$confirm           = GETPOST('confirm', 'alpha');
 
 $tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
 $scraper = new PowrConnectScraper($tempDir);
@@ -60,18 +60,13 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	}
 
 	// --- Synchronisation d'UN seul produit (AJAX ou bouton) ---
-	if ($action == 'syncone' && $productId > 0) {
-		// Récupérer la ligne prix de ce produit
-		$products = getProductsWithPowrRef($db, $fkSoc);
-		$found = array();
-		foreach ($products as $p) {
-			if ((int) $p['fk_product'] === $productId) {
-				$found = $p;
-				break;
-			}
-		}
+	if ($action == 'syncone' && $supplierPriceLineId > 0) {
+		// Récupérer exactement la ligne fournisseur ciblée
+		$found = getProductWithPowrRefByLineId($db, $fkSoc, $supplierPriceLineId);
 
-		if (empty($found)) {
+		if ($found === false) {
+			setEventMessages($langs->trans('PowrSyncDbError').': '.$db->lasterror(), null, 'errors');
+		} elseif (empty($found)) {
 			setEventMessages($langs->trans('PowrSyncProductNotFound'), null, 'errors');
 		} else {
 			$ret2 = syncOneSupplierProductPrice($db, $scraper, $found, $fkSoc, $user, getDolGlobalString('POWRSYNC_LOGIN'), dol_decode(getDolGlobalString('POWRSYNC_PASSWORD')));
@@ -248,7 +243,7 @@ if (empty($products)) {
 		// Bouton sync individuel
 		print '<td class="center">';
 		if ($user->hasRight('powrsync', 'synclog', 'write')) {
-			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&productid='.$pid.'&token='.newToken().'">';
+			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&lineid='.(int) $prod['pfp_rowid'].'&token='.newToken().'">';
 			print img_picto($langs->trans('Sync'), 'refresh');
 			print '</a>';
 		}
@@ -310,6 +305,47 @@ function getProductsWithPowrRef($db, $fkSoc)
 	}
 
 	return $result;
+}
+
+/**
+ * Returns one supplier product row for POwR Connect sync.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$fkSoc
+ * @param	int		$lineId
+ * @return	array|false
+ */
+function getProductWithPowrRefByLineId($db, $fkSoc, $lineId)
+{
+	$sql = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
+	$sql .= " WHERE pfp.rowid = ".((int) $lineId);
+	$sql .= " AND pfp.fk_soc = ".((int) $fkSoc);
+	$sql .= " AND pfp.entity IN (".getEntity('product').")";
+	$sql .= " AND pfp.status = 1";
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return false;
+	}
+
+	$obj = $db->fetch_object($resql);
+	if (empty($obj)) {
+		return array();
+	}
+
+	return array(
+		'pfp_rowid' => (int) $obj->pfp_rowid,
+		'fk_product' => (int) $obj->fk_product,
+		'ref_product' => $obj->ref_product,
+		'label_product' => $obj->label_product,
+		'ref_fourn' => $obj->ref_fourn,
+		'unitprice' => (float) $obj->unitprice,
+		'quantity' => (float) $obj->quantity,
+		'supplier_url' => $obj->supplier_url,
+	);
 }
 
 // =========================================================================
