@@ -116,6 +116,28 @@ if ($rescount) {
 	$total = (int) $objcount->nb;
 }
 
+// Count total nb of records
+$nbtotalofrecords = '';
+if (!getDolGlobalInt('MAIN_DISABLE_FULL_SCANLIST')) {
+	/* The fast and low memory method to get and count full list converts the sql into a sql count */
+	$sqlforcount = preg_replace('/^'.preg_quote($sqlfields, '/').'/', 'SELECT COUNT(*) as nbtotalofrecords', $sql);
+	$sqlforcount = preg_replace('/GROUP BY .*$/', '', $sqlforcount);
+
+	$resql = $db->query($sqlforcount);
+	if ($resql) {
+		$objforcount = $db->fetch_object($resql);
+		$nbtotalofrecords = $objforcount->nbtotalofrecords;
+	} else {
+		dol_print_error($db);
+	}
+
+	if (($page * $limit) > $nbtotalofrecords) {	// if total resultset is smaller than the paging size (filtering), goto and load page 0
+		$page = 0;
+		$offset = 0;
+	}
+	$db->free($resql);
+}
+
 $param = '';
 if ($search_ref_fourn !== '') {
 	$param .= '&search_ref_fourn='.urlencode($search_ref_fourn);
@@ -129,7 +151,7 @@ llxHeader('', $langs->trans('PowrSyncLog'));
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'clock', 0, '', '', $limit);
-print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, 'clock', 0, $newcardbutton, '', $limit, 0, 0, 1);
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, 'clock', 0, '', '', $limit, 0, 0, 1);
 
 print '<div class="div-table-responsive">';
 print '<table class="tagtable liste">';
