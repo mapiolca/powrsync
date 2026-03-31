@@ -11,7 +11,7 @@ $langs->loadLangs(array('products', 'powrsync@powrsync'));
 if (!isModEnabled('powrsync')) {
 	accessforbidden();
 }
-if (!$user->hasRight('powrsync', 'sync', 'read')) {
+if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 	accessforbidden();
 }
 
