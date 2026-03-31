@@ -484,7 +484,7 @@ function getSupplierDefaultVatRate($db, $supplierId)
 	}
 
 	$configuredVatRaw = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
-	if ($configuredVatRaw === '') {
+	if (trim((string) $configuredVatRaw) === '') {
 		return null;
 	}
 

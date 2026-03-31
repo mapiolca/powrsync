@@ -248,7 +248,7 @@ class PowrSync extends CommonObject
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
 		$configuredVatRaw = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
-		if ($configuredVatRaw === '') {
+		if (trim((string) $configuredVatRaw) === '') {
 			if (is_object($langs)) {
 				$langs->load('powrsync@powrsync');
 				$this->error = $langs->trans('PowrSyncDefaultVatRateRequired');
