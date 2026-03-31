@@ -74,7 +74,7 @@ class PowrSync extends CommonObject
 		// Récupérer les produits avec une ref POwR Connect
 		$products = $this->getProductsWithPowrRef();
 		if (empty($products)) {
-			dol_syslog('PowrSync: aucun produit avec ref POwR Connect trouvé', LOG_INFO);
+			dol_syslog('PowrSync success: 0 product checked, 0 updated, 0 error', LOG_INFO);
 			return 0;
 		}
 
@@ -90,6 +90,7 @@ class PowrSync extends CommonObject
 
 		// Synchronisation produit par produit
 		$updatedCount = 0;
+		$checkedCount = count($products);
 		foreach ($products as $product) {
 			$result = $this->syncOneProduct($scraper, $product);
 			if ($result > 0) {
@@ -99,7 +100,8 @@ class PowrSync extends CommonObject
 
 		$scraper->close();
 
-		dol_syslog('PowrSync: '.$updatedCount.' prix mis à jour sur '.count($products).' produits', LOG_INFO);
+		$errorCount = count($this->errors);
+		dol_syslog('PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error', LOG_INFO);
 		return $updatedCount;
 	}
 
