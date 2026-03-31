@@ -280,6 +280,25 @@ class PowrConnectScraper
 	}
 
 	/**
+	 * Test supplier connection and read one product price.
+	 *
+	 * @param	string	$login
+	 * @param	string	$password
+	 * @param	string	$url
+	 * @param	string	$powrRef
+	 * @return	float|false
+	 */
+	public function testConnectionAndGetPrice($login, $password, $url, $powrRef = 'TEST')
+	{
+		$ret = $this->login($login, $password);
+		if ($ret < 0) {
+			return false;
+		}
+
+		return $this->getPrice($powrRef, $url);
+	}
+
+	/**
 	 * EN: Extract login endpoint and hidden fields from the /connexion HTML form.
 	 * FR: Extrait l'endpoint de login et les champs cachés du formulaire HTML /connexion.
 	 *

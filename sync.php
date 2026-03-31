@@ -6,6 +6,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
 
 $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
@@ -34,12 +35,24 @@ $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
 if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
-		$ret = $scraper->syncAllPrices();
-		if ($ret < 0) {
-			setEventMessages($scraper->error, $scraper->errors, 'errors');
+		$productsToSync = getProductsWithPowrRef($db, $fkSoc);
+		$updatedCount = 0;
+		$errorMessages = array();
+
+		if ($productsToSync === false) {
+			setEventMessages($langs->trans('PowrSyncDbError').': '.$db->lasterror(), null, 'errors');
 		} else {
-			setEventMessages($langs->trans('PowrSyncDone', $ret), null, 'mesgs');
+			foreach ($productsToSync as $productToSync) {
+				$syncStatus = syncOneSupplierProductPrice($db, $scraper, $productToSync, $fkSoc, $user, getDolGlobalString('POWRSYNC_LOGIN'), dol_decode(getDolGlobalString('POWRSYNC_PASSWORD')));
+				if ($syncStatus > 0) {
+					$updatedCount++;
+				} elseif ($syncStatus < 0) {
+					$errorMessages[] = $productToSync['ref_fourn'].' : '.$scraper->error;
+				}
+			}
+			setEventMessages($langs->trans('PowrSyncDone', $updatedCount), $errorMessages, empty($errorMessages) ? 'mesgs' : 'warnings');
 		}
+		$scraper->close();
 		header('Location: '.$_SERVER['PHP_SELF']);
 		exit;
 	}
@@ -59,23 +72,16 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 		if (empty($found)) {
 			setEventMessages($langs->trans('PowrSyncProductNotFound'), null, 'errors');
 		} else {
-			$ret2 = $scraper->login(
-				getDolGlobalString('POWRSYNC_LOGIN'),
-				dol_decode(getDolGlobalString('POWRSYNC_PASSWORD'))
-			);
-			if ($ret2 < 0) {
-				setEventMessages($scraper->error, null, 'errors');
+			$ret2 = syncOneSupplierProductPrice($db, $scraper, $found, $fkSoc, $user, getDolGlobalString('POWRSYNC_LOGIN'), dol_decode(getDolGlobalString('POWRSYNC_PASSWORD')));
+			if ($ret2 == 1) {
+				setEventMessages($langs->trans('PowrSyncUpdated', $found['ref_product'], $found['ref_fourn']), null, 'mesgs');
+			} elseif ($ret2 == 2) {
+				setEventMessages($langs->trans('PowrSyncUpToDate', $found['ref_product']), null, 'warnings');
 			} else {
-				$ret2 = $scraper->syncOneProduct($found, $user);
-				if ($ret2 == 1) {
-					setEventMessages($langs->trans('PowrSyncUpdated', $found['ref_product'], $found['ref_fourn']), null, 'mesgs');
-				} elseif ($ret2 == 2) {
-					setEventMessages($langs->trans('PowrSyncUpToDate', $found['ref_product']), null, 'warnings');
-				} else {
-					setEventMessages($scraper->error, null, 'errors');
-				}
+				setEventMessages($scraper->error, null, 'errors');
 			}
 		}
+		$scraper->close();
 		header('Location: '.$_SERVER['PHP_SELF']);
 		exit;
 	}
@@ -186,10 +192,14 @@ if (empty($products)) {
 
 		// Ref POwR
 		print '<td>';
-		print '<a href="https://powr-connect.shop/produit/'.urlencode($prod['ref_fourn']).'" target="_blank" rel="noopener">';
-		print dol_escape_htmltag($prod['ref_fourn']);
-		print ' '.img_picto('', 'external-link-alt', 'class="opacitymedium"');
-		print '</a>';
+		if (!empty($prod['supplier_url'])) {
+			print '<a href="'.dol_escape_htmltag($prod['supplier_url']).'" target="_blank" rel="noopener">';
+			print dol_escape_htmltag($prod['ref_fourn']);
+			print ' '.img_picto('', 'external-link-alt', 'class="opacitymedium"');
+			print '</a>';
+		} else {
+			print dol_escape_htmltag($prod['ref_fourn']);
+		}
 		print '</td>';
 
 		// Prix actuel Dolibarr
@@ -269,9 +279,10 @@ $db->close();
  */
 function getProductsWithPowrRef($db, $fkSoc)
 {
-	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice";
+	$sql = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
@@ -285,11 +296,14 @@ function getProductsWithPowrRef($db, $fkSoc)
 	$result = array();
 	while ($obj = $db->fetch_object($resql)) {
 		$result[] = array(
+			'pfp_rowid' => (int) $obj->pfp_rowid,
 			'fk_product' => (int) $obj->fk_product,
 			'ref_product' => $obj->ref_product,
 			'label_product' => $obj->label_product,
 			'ref_fourn' => $obj->ref_fourn,
 			'unitprice' => (float) $obj->unitprice,
+			'quantity' => (float) $obj->quantity,
+			'supplier_url' => $obj->supplier_url,
 		);
 	}
 
@@ -329,4 +343,87 @@ function getLastLogsByProduct($db, $fkSoc)
 		}
 	}
 	return $result;
+}
+
+/**
+ * Synchronize one supplier product price with POwR Connect.
+ *
+ * @param	DoliDB				$db
+ * @param	PowrConnectScraper	$scraper
+ * @param	array				$productRow
+ * @param	int					$fkSoc
+ * @param	User				$user
+ * @param	string				$login
+ * @param	string				$password
+ * @return	int
+ */
+function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, $login, $password)
+{
+	$powrRef = $productRow['ref_fourn'];
+	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
+
+	if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+		$scraper->error = 'URL fournisseur non valide pour '.$powrRef;
+		return -1;
+	}
+
+	$newPrice = $scraper->testConnectionAndGetPrice($login, $password, $url, $powrRef);
+	if ($newPrice === false) {
+		return -1;
+	}
+
+	$currentPrice = (float) $productRow['unitprice'];
+	if (abs($newPrice - $currentPrice) <= 0.001) {
+		return 2;
+	}
+
+	$productFournisseur = new ProductFournisseur($db);
+	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
+	$productId = (int) $productRow['fk_product'];
+	$qty = max(1, (float) $productRow['quantity']);
+
+	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
+	// FR: Toujours renseigner les IDs de contexte avant update pour éviter le fallback delete/insert avec fk_product=0/fk_soc=0.
+	$productFournisseur->id = $productId;
+	$productFournisseur->fk_product = $productId;
+	$productFournisseur->fourn_id = (int) $fkSoc;
+	$productFournisseur->ref_fourn = $powrRef;
+	$productFournisseur->fourn_qty = $qty;
+	if ($priceLineId > 0) {
+		$productFournisseur->product_fourn_price_id = $priceLineId;
+	}
+
+	$fetchResult = $productFournisseur->fetch_product_fournisseur_price(
+		$productId,
+		(int) $fkSoc,
+		$powrRef,
+		$qty
+	);
+	if ($fetchResult < 0) {
+		$productFournisseur->fk_product = $productId;
+		$productFournisseur->fourn_id = (int) $fkSoc;
+		$productFournisseur->ref_fourn = $powrRef;
+		$productFournisseur->fourn_qty = $qty;
+	}
+
+	$res = $productFournisseur->update_buyprice(
+		$qty,
+		(float) $newPrice,
+		$user,
+		'HT',
+		(int) $fkSoc,
+		0,
+		$powrRef,
+		0,
+		0,
+		0,
+		0
+	);
+
+	if ($res < 0) {
+		$scraper->error = !empty($productFournisseur->error) ? $productFournisseur->error : $db->lasterror();
+		return -1;
+	}
+
+	return 1;
 }

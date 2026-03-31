@@ -141,6 +141,27 @@ class modPowrSync extends DolibarrModules
 			return -1;
 		}
 
+		// EN: Create synchronization log table if missing at module activation.
+		// FR: Crée la table de logs de synchronisation si elle n'existe pas à l'activation du module.
+		$sql = "CREATE TABLE IF NOT EXISTS ".MAIN_DB_PREFIX."powrsync_log (";
+		$sql .= " rowid INTEGER AUTO_INCREMENT PRIMARY KEY,";
+		$sql .= " fk_product INTEGER NOT NULL,";
+		$sql .= " datec DATETIME NOT NULL,";
+		$sql .= " old_price DOUBLE(24,8) NULL,";
+		$sql .= " new_price DOUBLE(24,8) NULL,";
+		$sql .= " status VARCHAR(20) NOT NULL,";
+		$sql .= " message TEXT NULL,";
+		$sql .= " INDEX idx_powrsync_log_fk_product (fk_product),";
+		$sql .= " INDEX idx_powrsync_log_datec (datec),";
+		$sql .= " INDEX idx_powrsync_log_status (status)";
+		$sql .= ") ENGINE=innodb";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 
 		// Enable extrafield visibility by default
