@@ -129,6 +129,7 @@ llxHeader('', $langs->trans('PowrSyncLog'));
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'clock', 0, '', '', $limit);
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER["PHP_SELF"], $param, $sortfield, $sortorder, $massactionbutton, $num, $nbtotalofrecords, 'clock', 0, $newcardbutton, '', $limit, 0, 0, 1);
 
 print '<div class="div-table-responsive">';
 print '<table class="tagtable liste">';
