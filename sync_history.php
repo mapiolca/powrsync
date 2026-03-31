@@ -55,19 +55,35 @@ if (!in_array($sortfield, $allowedSortFields, true)) {
 }
 $sortorder = (strtoupper($sortorder) === 'ASC') ? 'ASC' : 'DESC';
 
-$hasEntityColumn = false;
-$rescol = $db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log LIKE 'entity'");
-if ($rescol && $db->num_rows($rescol) > 0) {
-	$hasEntityColumn = true;
+$availableColumns = array();
+$rescol = $db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log");
+if ($rescol) {
+	while ($objcol = $db->fetch_object($rescol)) {
+		$availableColumns[$objcol->Field] = true;
+	}
+	$db->free($rescol);
 }
 
+$hasEntityColumn = !empty($availableColumns['entity']);
+$hasFkUserCreatColumn = !empty($availableColumns['fk_user_creat']);
+$hasRefProductColumn = !empty($availableColumns['ref_product']);
+$hasRefFournColumn = !empty($availableColumns['ref_fourn']);
+
+$sqlselect = "SELECT l.rowid, l.datec, l.fk_product, l.old_price, l.new_price, l.status, l.message";
+$sqlselect .= ", ".($hasRefProductColumn ? "l.ref_product" : "p.ref")." AS ref_product";
+$sqlselect .= ", ".($hasRefFournColumn ? "l.ref_fourn" : "''")." AS ref_fourn";
+$sqlselect .= ", ".($hasFkUserCreatColumn ? "u.login" : "''")." AS login";
+
 $sqlfrom = " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
-$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."user AS u ON u.rowid = l.fk_user_creat";
+$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
+if ($hasFkUserCreatColumn) {
+	$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."user AS u ON u.rowid = l.fk_user_creat";
+}
 $sqlwhere = " WHERE 1 = 1";
 if ($hasEntityColumn) {
 	$sqlwhere .= " AND l.entity IN (".getEntity('powrsync').")";
 }
-if ($search_ref_fourn !== '') {
+if ($search_ref_fourn !== '' && $hasRefFournColumn) {
 	$sqlwhere .= " AND l.ref_fourn LIKE '%".$db->escape($search_ref_fourn)."%'";
 }
 if ($search_status !== '') {
@@ -80,10 +96,20 @@ if ($search_status !== '') {
 	}
 }
 
-$sql = "SELECT l.rowid, l.datec, l.fk_product, l.ref_product, l.ref_fourn, l.old_price, l.new_price, l.status, l.message, u.login";
+$sortFieldMap = array(
+	'l.datec' => 'l.datec',
+	'l.ref_product' => 'ref_product',
+	'l.ref_fourn' => 'ref_fourn',
+	'l.status' => 'l.status',
+	'u.login' => ($hasFkUserCreatColumn ? 'u.login' : 'l.rowid'),
+);
+if (empty($sortFieldMap[$sortfield])) {
+	$sortfield = 'l.datec';
+}
+$sql = $sqlselect;
 $sql .= $sqlfrom;
 $sql .= $sqlwhere;
-$sql .= " ORDER BY ".$sortfield." ".$sortorder;
+$sql .= " ORDER BY ".$sortFieldMap[$sortfield]." ".$sortorder;
 $sql .= $db->plimit($limit, $offset);
 
 $resql = $db->query($sql);
@@ -116,7 +142,13 @@ print '<table class="tagtable liste">';
 print '<tr class="liste_titre_filter">';
 print '<td></td>';
 print '<td></td>';
-print '<td><input type="text" class="flat minwidth100" name="search_ref_fourn" value="'.dol_escape_htmltag($search_ref_fourn).'"></td>';
+print '<td>';
+if ($hasRefFournColumn) {
+	print '<input type="text" class="flat minwidth100" name="search_ref_fourn" value="'.dol_escape_htmltag($search_ref_fourn).'">';
+} else {
+	print '<span class="opacitymedium">-</span>';
+}
+print '</td>';
 print '<td></td>';
 print '<td></td>';
 print '<td></td>';
