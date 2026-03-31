@@ -19,7 +19,7 @@ class modPowrSync extends DolibarrModules
 		parent::__construct($db);
 
 		// ID unique — à réserver sur https://wiki.dolibarr.org/index.php/List_of_modules_id
-		$this->numero = 680001;
+		$this->numero = 450013;
 
 		$this->rights_class   = 'powrsync';
 		$this->family         = 'Les Métiers du Bâtiment';
