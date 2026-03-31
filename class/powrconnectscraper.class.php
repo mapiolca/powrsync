@@ -266,6 +266,7 @@ class PowrConnectScraper
 		}
 
 		$lines = file($this->cookieFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+		$cookieNames = array();
 		foreach ($lines as $line) {
 			// Les cookies HttpOnly sont préfixés par "#HttpOnly_" — il faut les traiter
 			if (strpos($line, '#HttpOnly_') === 0) {
@@ -275,29 +276,55 @@ class PowrConnectScraper
 			}
 			$parts = explode("\t", $line);
 			// Format Netscape : domain, flag, path, secure, expiry, name, value
-			if (count($parts) >= 7 && $parts[5] === 'csrf') {
-				$value = urldecode($parts[6]);
-				$this->debug('extractCsrfFromCookieJar : trouvé, longueur='.strlen($value));
-				return $value;
+			if (count($parts) >= 7) {
+				$cookieNames[] = $parts[5];
+				if ($parts[5] === 'csrf') {
+					$rawValue = urldecode($parts[6]);
+					// Le cookie Remix est signé : base64(json_token).signature
+					// Il faut décoder pour extraire le token brut
+					$token = $this->decodeRemixSignedCookie($rawValue);
+					$this->debug('extractCsrfFromCookieJar : trouvé, raw='.strlen($rawValue).' bytes, token décodé='.strlen($token).' bytes');
+					return $token;
+				}
 			}
 		}
 
-		// Debug : dump les noms de cookies trouvés pour diagnostic
-		$cookieNames = array();
-		foreach ($lines as $line) {
-			$cleanLine = $line;
-			if (strpos($cleanLine, '#HttpOnly_') === 0) {
-				$cleanLine = substr($cleanLine, 10);
-			} elseif (isset($cleanLine[0]) && $cleanLine[0] === '#') {
-				continue;
-			}
-			$parts = explode("\t", $cleanLine);
-			if (count($parts) >= 7) {
-				$cookieNames[] = $parts[5];
-			}
-		}
 		$this->debug('extractCsrfFromCookieJar : cookie csrf non trouvé. Cookies présents : '.implode(', ', $cookieNames));
 		return '';
+	}
+
+	/**
+	 * Décode un cookie signé Remix (format : base64(json_value).hmac_signature)
+	 * Retourne la valeur brute du token (sans guillemets JSON, sans signature)
+	 */
+	private function decodeRemixSignedCookie($signedValue)
+	{
+		// Format : base64("token_value").43_chars_signature
+		// Le dernier "." sépare la valeur base64 de la signature HMAC (43 chars base64url)
+		$lastDot = strrpos($signedValue, '.');
+		if ($lastDot === false) {
+			$this->debug('decodeRemixSignedCookie : pas de "." — valeur brute utilisée');
+			return $signedValue;
+		}
+
+		$base64Part = substr($signedValue, 0, $lastDot);
+		$decoded = base64_decode($base64Part);
+
+		if ($decoded === false) {
+			$this->debug('decodeRemixSignedCookie : base64_decode échoué — valeur brute utilisée');
+			return $signedValue;
+		}
+
+		// La valeur décodée est un JSON string entre guillemets : "token_value"
+		$token = json_decode($decoded);
+		if (is_string($token)) {
+			$this->debug('decodeRemixSignedCookie : token JSON décodé OK, longueur='.strlen($token));
+			return $token;
+		}
+
+		// Fallback : retourner la valeur décodée telle quelle
+		$this->debug('decodeRemixSignedCookie : json_decode non-string, utilise valeur brute décodée');
+		return $decoded;
 	}
 
 	/**
