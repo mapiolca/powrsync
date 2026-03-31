@@ -184,6 +184,7 @@ print '<div class="div-table-responsive">';
 print '<table class="tagtable nobottomiftotal noborder liste">';
 
 print '<tr class="liste_titre_filter">';
+print '<td class="liste_titre center maxwidthsearch">'.$form->showFilterButtons('left').'</td>';
 if (!empty($arrayfields['datec']['checked'])) {
 	print '<td></td>';
 }
@@ -221,10 +222,10 @@ if (!empty($arrayfields['status']['checked'])) {
 if (!empty($arrayfields['message']['checked'])) {
 	print '<td></td>';
 }
-print '<td class="liste_titre center maxwidthsearch">'.$form->showFilterButtons('left').'</td>';
 print '</tr>';
 
 print '<tr class="liste_titre">';
+print '<td class="liste_titre maxwidthsearch">'.$selectedfieldshtml.'</td>';
 if (!empty($arrayfields['datec']['checked'])) {
 	print getTitleFieldOfList($langs->trans('Date'), 0, $_SERVER['PHP_SELF'], 'l.datec', '', $param, '', $sortfield, $sortorder);
 }
@@ -249,7 +250,6 @@ if (!empty($arrayfields['status']['checked'])) {
 if (!empty($arrayfields['message']['checked'])) {
 	print '<td>'.$langs->trans('Message').'</td>';
 }
-print '<td class="liste_titre right">'.$selectedfieldshtml.'</td>';
 print '</tr>';
 
 if ($resql) {
@@ -268,6 +268,7 @@ if ($resql) {
 		}
 
 		print '<tr class="oddeven">';
+		print '<td></td>';
 		if (!empty($arrayfields['datec']['checked'])) {
 			print '<td>'.dol_print_date($db->jdate($obj->datec), 'dayhour').'</td>';
 		}
@@ -308,7 +309,6 @@ if ($resql) {
 		if (!empty($arrayfields['message']['checked'])) {
 			print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
 		}
-		print '<td></td>';
 		print '</tr>';
 	}
 	$db->free($resql);
