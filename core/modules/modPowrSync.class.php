@@ -141,6 +141,11 @@ class modPowrSync extends DolibarrModules
 			return -1;
 		}
 
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+
+		// Enable extrafield visibility by default
+		dolibarr_set_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', '1', 'yesno', 0, '', 0);
+
 		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
@@ -169,7 +174,7 @@ class modPowrSync extends DolibarrModules
 
 		// Ensure visibility is active for all entities
 		$sql = "UPDATE ".MAIN_DB_PREFIX."extrafields";
-		$sql .= " SET enabled = '1', entity = 0";
+		$sql .= " SET enabled = '(getDolGlobalInt(\"SYNC_URL_SUPPLIER_EXTRAFIELD\") == 1)', entity = 0";
 		$sql .= " WHERE name = 'supplier_url'";
 		$sql .= " AND elementtype = 'product_fournisseur_price'";
 		$this->db->query($sql);
@@ -179,6 +184,9 @@ class modPowrSync extends DolibarrModules
 
 	public function remove($options = '')
 	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+		dolibarr_del_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', 0);
+
 		$sql = array();
 		return $this->_remove($sql, $options);
 	}
