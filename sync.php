@@ -47,7 +47,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation d'UN seul produit (AJAX ou bouton) ---
 	if ($action == 'syncone' && $productId > 0) {
 		// Récupérer la ligne prix de ce produit
-		$products = $scraper->getProductsWithPowrRef($fkSoc);
+		$products = getProductsWithPowrRef($db, $fkSoc);
 		$found = array();
 		foreach ($products as $p) {
 			if ((int) $p['fk_product'] === $productId) {
@@ -123,10 +123,10 @@ if ($user->hasRight('powrsync', 'synclog', 'write') && $action != 'syncall') {
 }
 
 // Liste des produits avec ref POwR Connect
-$products = $scraper->getProductsWithPowrRef($fkSoc);
+$products = getProductsWithPowrRef($db, $fkSoc);
 
 if ($products === false) {
-	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($scraper->error).'</div>';
+	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($db->lasterror()).'</div>';
 	llxFooter();
 	$db->close();
 	exit;
@@ -255,6 +255,46 @@ print '</p>';
 
 llxFooter();
 $db->close();
+
+// =========================================================================
+// HELPER FUNCTION: syncable products
+// =========================================================================
+
+/**
+ * Returns supplier product rows for POwR Connect sync.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$fkSoc
+ * @return	array|false
+ */
+function getProductsWithPowrRef($db, $fkSoc)
+{
+	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
+	$sql .= " AND pfp.entity IN (".getEntity('product').")";
+	$sql .= " AND pfp.status = 1";
+	$sql .= " ORDER BY p.ref ASC";
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return false;
+	}
+
+	$result = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$result[] = array(
+			'fk_product' => (int) $obj->fk_product,
+			'ref_product' => $obj->ref_product,
+			'label_product' => $obj->label_product,
+			'ref_fourn' => $obj->ref_fourn,
+			'unitprice' => (float) $obj->unitprice,
+		);
+	}
+
+	return $result;
+}
 
 // =========================================================================
 // FONCTION UTILITAIRE : derniers logs par produit
