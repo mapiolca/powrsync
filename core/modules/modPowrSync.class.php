@@ -125,7 +125,7 @@ class modPowrSync extends DolibarrModules
 			'titre'    => 'Historique des syncs',
 			'mainmenu' => 'products',
 			'leftmenu' => 'powrsync_log',
-			'url'      => '/powrsync/powrsync_log.php',
+			'url'      => '/powrsync/sync_history.php',
 			'langs'    => 'powrsync@powrsync',
 			'position' => 902,
 			'enabled'  => 'isModEnabled("powrsync")',
