@@ -20,9 +20,9 @@ if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 	accessforbidden();
 }
 
-$action     = GETPOST('action', 'aZ09');
-$productId  = GETPOST('productid', 'int');
-$confirm    = GETPOST('confirm', 'alpha');
+$action            = GETPOST('action', 'aZ09');
+$supplierPriceLineId = GETPOST('lineid', 'int');
+$confirm           = GETPOST('confirm', 'alpha');
 
 $tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
 $scraper = new PowrConnectScraper($tempDir);
@@ -60,12 +60,12 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	}
 
 	// --- Synchronisation d'UN seul produit (AJAX ou bouton) ---
-	if ($action == 'syncone' && $productId > 0) {
+	if ($action == 'syncone' && $supplierPriceLineId > 0) {
 		// Récupérer la ligne prix de ce produit
 		$products = getProductsWithPowrRef($db, $fkSoc);
 		$found = array();
 		foreach ($products as $p) {
-			if ((int) $p['fk_product'] === $productId) {
+			if ((int) $p['pfp_rowid'] === $supplierPriceLineId) {
 				$found = $p;
 				break;
 			}
@@ -248,7 +248,7 @@ if (empty($products)) {
 		// Bouton sync individuel
 		print '<td class="center">';
 		if ($user->hasRight('powrsync', 'synclog', 'write')) {
-			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&productid='.$pid.'&token='.newToken().'">';
+			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&lineid='.(int) $prod['pfp_rowid'].'&token='.newToken().'">';
 			print img_picto($langs->trans('Sync'), 'refresh');
 			print '</a>';
 		}
