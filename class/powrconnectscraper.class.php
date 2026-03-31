@@ -156,9 +156,14 @@ class PowrConnectScraper
 				$this->loginState = 'already_connected';
 				return 1;
 			}
-			// EN: isSessionActive() re-initializes cURL, restore default handle settings for login flow.
-			// FR: isSessionActive() réinitialise cURL, on restaure la config par défaut pour le flux de login.
-			$this->initCurl();
+			// EN: If login form is absent, do not force a POST login (can trigger HTTP 500 upstream).
+			// FR: Si le formulaire est absent, ne pas forcer un POST login (peut déclencher un HTTP 500 côté fournisseur).
+			// EN: Continue flow and let product URL access confirm whether session is usable.
+			// FR: Continuer le flux et laisser l'accès URL produit confirmer si la session est exploitable.
+			$this->loggedIn = true;
+			$this->loginState = 'already_connected';
+			$this->debug('No login form and inactive /account/profile check: skip login POST, continue with product URL test');
+			return 1;
 		}
 
 		$postUrl = $formConfig['action'];
