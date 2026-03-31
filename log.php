@@ -23,8 +23,6 @@ $offset     = $limit * $page;
 $filterRef  = GETPOST('ref_fourn', 'alpha');
 $filterStat = GETPOST('status', 'int');
 
-llxHeader('', $langs->trans('PowrSyncLog'), '');
-
 print load_fiche_titre($langs->trans('PowrSyncLog'), '', 'price');
 
 // Filtres
