@@ -47,3 +47,6 @@ Variation=Variation
 PowrLogUpdated=Mis à jour
 PowrLogUpToDate=À jour
 PowrLogError=Erreur
+
+PowrSyncSupplierUrlLabel=URL produit fournisseur
+PowrSyncSupplierUrlTooltip=Saisir l'URL menant à la fiche produit du shop fournisseur

@@ -110,10 +110,10 @@ class PowrSync extends CommonObject
 		$powrRef    = $product['ref_fourn'];
 		$productId  = $product['product_id'];
 		$currentPrice = (float) $product['unit_price'];
-		$powrUrl    = !empty($product['powrsync_url']) ? $product['powrsync_url'] : '';
+		$powrUrl    = !empty($product['supplier_url']) ? $product['supplier_url'] : '';
 
 		if (empty($powrUrl)) {
-			$this->addError('Ref '.$powrRef.' : URL fournisseur non renseignée (extrafield powrsync_url)');
+			$this->addError('Ref '.$powrRef.' : URL fournisseur non renseignée (extrafield supplier_url)');
 			$this->logSync($productId, $powrRef, $currentPrice, null, 'error', 'URL fournisseur manquante');
 			return -1;
 		}
@@ -187,7 +187,7 @@ class PowrSync extends CommonObject
 			." pfp.unit_price,"
 			." pfp.quantity AS qty_min_to_buy,"
 			." pfp.rowid AS pfp_id,"
-			." extra.powrsync_url"
+			." extra.supplier_url"
 			." FROM ".MAIN_DB_PREFIX."product_fournisseur_price pfp"
 			." INNER JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = pfp.fk_product"
 			." LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields extra ON extra.fk_object = pfp.rowid"
@@ -210,7 +210,7 @@ class PowrSync extends CommonObject
 				'unit_price'    => (float) $obj->unit_price,
 				'qty_min_to_buy' => (float) $obj->qty_min_to_buy,
 				'pfp_id'        => (int) $obj->pfp_id,
-				'powrsync_url'  => !empty($obj->powrsync_url) ? $obj->powrsync_url : '',
+				'supplier_url'  => !empty($obj->supplier_url) ? $obj->supplier_url : '',
 			);
 		}
 		return $list;

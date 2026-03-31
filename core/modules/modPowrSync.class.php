@@ -141,14 +141,19 @@ class modPowrSync extends DolibarrModules
 			return -1;
 		}
 
-		// Créer l'extrafield "URL fournisseur" sur product_fournisseur_price si absent
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+
+		// Enable extrafield visibility by default
+		dolibarr_set_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', '1', 'yesno', 0, '', 0);
+
+		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
 		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
-		if (!isset($existing['powrsync_url'])) {
+		if (!isset($existing['supplier_url'])) {
 			$extrafields->addExtraField(
-				'powrsync_url',                      // attrname
-				'URL produit fournisseur (POwR)',     // label
+				'supplier_url',                     // attrname
+				'PowrSyncSupplierUrlLabel',         // label
 				'url',                               // type
 				100,                                  // pos
 				'',                                   // size
@@ -159,19 +164,29 @@ class modPowrSync extends DolibarrModules
 				'',                                   // param
 				1,                                    // alwayseditable
 				'',                                   // perms
-				0,                                    // list (hidden in lists)
-				'',                                   // help
+				1,                                    // list
+				'PowrSyncSupplierUrlTooltip',         // help
 				'',                                   // computed
-				$conf->entity,                        // entity
-				0                                     // langfile
+				0,                                    // entity (all entities)
+				'powrsync@powrsync'                   // langfile
 			);
 		}
+
+		// Ensure visibility is active for all entities
+		$sql = "UPDATE ".MAIN_DB_PREFIX."extrafields";
+		$sql .= " SET enabled = '(getDolGlobalInt(\"SYNC_URL_SUPPLIER_EXTRAFIELD\") == 1)', entity = 0";
+		$sql .= " WHERE name = 'supplier_url'";
+		$sql .= " AND elementtype = 'product_fournisseur_price'";
+		$this->db->query($sql);
 
 		return $result;
 	}
 
 	public function remove($options = '')
 	{
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+		dolibarr_del_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', 0);
+
 		$sql = array();
 		return $this->_remove($sql, $options);
 	}
