@@ -74,6 +74,8 @@ Activer via : Configuration → Tâches planifiées.
 
 ```
 powrsync/
+├── admin/setup.php                       ← Réglages
+├── admin/about.php                       ← À propos
 ├── core/modules/modPowrSync.class.php    ← Descripteur module
 ├── class/
 │   └── powrconnectscraper.class.php      ← Scraper + logique métier
@@ -83,10 +85,13 @@ powrsync/
 ├── admin/
 │   └── setup.php                         ← Page de configuration
 ├── sync.php                              ← Page principale (liste + actions)
-├── log.php                               ← Historique des synchros
+├── sync_history.php                               ← Historique des synchros
 └── langs/
     ├── fr_FR/powrsync.lang
     └── en_US/powrsync.lang
+    └── es_ES/powrsync.lang
+    └── it_IT/powrsync.lang
+    └── de_DE/powrsync.lang
 ```
 
 ## Journalisation
