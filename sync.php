@@ -186,10 +186,14 @@ if (empty($products)) {
 
 		// Ref POwR
 		print '<td>';
-		print '<a href="https://powr-connect.shop/produit/'.urlencode($prod['ref_fourn']).'" target="_blank" rel="noopener">';
-		print dol_escape_htmltag($prod['ref_fourn']);
-		print ' '.img_picto('', 'external-link-alt', 'class="opacitymedium"');
-		print '</a>';
+		if (!empty($prod['supplier_url'])) {
+			print '<a href="'.dol_escape_htmltag($prod['supplier_url']).'" target="_blank" rel="noopener">';
+			print dol_escape_htmltag($prod['ref_fourn']);
+			print ' '.img_picto('', 'external-link-alt', 'class="opacitymedium"');
+			print '</a>';
+		} else {
+			print dol_escape_htmltag($prod['ref_fourn']);
+		}
 		print '</td>';
 
 		// Prix actuel Dolibarr
@@ -269,9 +273,10 @@ $db->close();
  */
 function getProductsWithPowrRef($db, $fkSoc)
 {
-	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice";
+	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, ef.supplier_url";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
@@ -290,6 +295,7 @@ function getProductsWithPowrRef($db, $fkSoc)
 			'label_product' => $obj->label_product,
 			'ref_fourn' => $obj->ref_fourn,
 			'unitprice' => (float) $obj->unitprice,
+			'supplier_url' => $obj->supplier_url,
 		);
 	}
 
