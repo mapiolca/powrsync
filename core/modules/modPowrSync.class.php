@@ -136,6 +136,8 @@ class modPowrSync extends DolibarrModules
 
 	public function init($options = '')
 	{
+		global $conf;
+
 		$result = $this->_init(array(), $options);
 		if ($result < 0) {
 			return -1;
@@ -144,6 +146,7 @@ class modPowrSync extends DolibarrModules
 		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
+		$entity = (!empty($conf->entity) ? (int) $conf->entity : 1);
 		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
 		if (!isset($existing['supplier_url'])) {
 			$extrafields->addExtraField(
@@ -162,7 +165,7 @@ class modPowrSync extends DolibarrModules
 				0,                                    // list (hidden in lists)
 				'',                                   // help
 				'',                                   // computed
-				$conf->entity,                        // entity
+				$entity,                              // entity
 				0                                     // langfile
 			);
 		}
