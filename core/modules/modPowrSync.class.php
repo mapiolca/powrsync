@@ -167,16 +167,6 @@ class modPowrSync extends DolibarrModules
 			);
 		}
 
-		// Backward compatibility: copy existing data from legacy "powrsync_url" if needed
-		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
-		if (isset($existing['powrsync_url']) && isset($existing['supplier_url'])) {
-			$sql = "UPDATE ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields";
-			$sql .= " SET supplier_url = powrsync_url";
-			$sql .= " WHERE (supplier_url IS NULL OR supplier_url = '')";
-			$sql .= " AND powrsync_url IS NOT NULL AND powrsync_url <> ''";
-			$this->db->query($sql);
-		}
-
 		return $result;
 	}
 
