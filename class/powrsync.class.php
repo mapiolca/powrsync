@@ -22,6 +22,7 @@ class PowrSync extends CommonObject
 
 	public $error  = '';
 	public $errors = array();
+	private $logColumns = null;
 
 	// Identifiant interne du fournisseur POwR Connect
 	private $supplierId = 0;
@@ -43,7 +44,7 @@ class PowrSync extends CommonObject
 	 */
 	public function syncAllProducts($email = '', $password = '')
 	{
-		global $conf, $user;
+		global $conf;
 
 		// Récupération des identifiants depuis la config si non fournis
 		if (empty($email)) {
@@ -55,20 +56,25 @@ class PowrSync extends CommonObject
 
 		if (empty($email) || empty($password)) {
 			$this->error = 'Identifiants POwR Connect non configurés (Menu : Config > POwR Sync)';
-			return -1;
+			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
+			return 0;
 		}
 
-		// Trouver l'ID du fournisseur POwR Connect dans Dolibarr
-		$this->supplierId = $this->findSupplierId();
+		// Use configured supplier first to mirror sync.php behavior
+		$this->supplierId = (int) getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
+		if ($this->supplierId <= 0) {
+			$this->supplierId = $this->findSupplierId();
+		}
 		if ($this->supplierId <= 0) {
 			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr. Le créer d\'abord.';
-			return -1;
+			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
+			return 0;
 		}
 
 		// Récupérer les produits avec une ref POwR Connect
 		$products = $this->getProductsWithPowrRef();
 		if (empty($products)) {
-			dol_syslog('PowrSync: aucun produit avec ref POwR Connect trouvé', LOG_INFO);
+			dol_syslog('PowrSync success: 0 product checked, 0 updated, 0 error', LOG_INFO);
 			return 0;
 		}
 
@@ -78,11 +84,13 @@ class PowrSync extends CommonObject
 
 		if ($scraper->login($email, $password) < 0) {
 			$this->error = 'Connexion POwR Connect échouée : '.$scraper->error;
-			return -1;
+			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
+			return 0;
 		}
 
 		// Synchronisation produit par produit
 		$updatedCount = 0;
+		$checkedCount = count($products);
 		foreach ($products as $product) {
 			$result = $this->syncOneProduct($scraper, $product);
 			if ($result > 0) {
@@ -92,7 +100,8 @@ class PowrSync extends CommonObject
 
 		$scraper->close();
 
-		dol_syslog('PowrSync: '.$updatedCount.' prix mis à jour sur '.count($products).' produits', LOG_INFO);
+		$errorCount = count($this->errors);
+		dol_syslog('PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error', LOG_INFO);
 		return $updatedCount;
 	}
 
@@ -111,7 +120,7 @@ class PowrSync extends CommonObject
 
 		$powrRef    = $product['ref_fourn'];
 		$productId  = $product['product_id'];
-		$currentPrice = (float) $product['unit_price'];
+		$currentPrice = (float) $product['unitprice'];
 		$powrUrl    = !empty($product['supplier_url']) ? $product['supplier_url'] : '';
 
 		if (empty($powrUrl)) {
@@ -187,7 +196,7 @@ class PowrSync extends CommonObject
 	{
 		$sql = "SELECT pfp.fk_product AS product_id,"
 			." pfp.ref_fourn,"
-			." pfp.unit_price,"
+			." pfp.unitprice,"
 			." pfp.quantity AS qty_min_to_buy,"
 			." pfp.rowid AS pfp_id,"
 			." extra.supplier_url"
@@ -210,7 +219,7 @@ class PowrSync extends CommonObject
 			$list[] = array(
 				'product_id'    => (int) $obj->product_id,
 				'ref_fourn'     => $obj->ref_fourn,
-				'unit_price'    => (float) $obj->unit_price,
+				'unitprice'     => (float) $obj->unitprice,
 				'qty_min_to_buy' => (float) $obj->qty_min_to_buy,
 				'pfp_id'        => (int) $obj->pfp_id,
 				'supplier_url'  => !empty($obj->supplier_url) ? $obj->supplier_url : '',
@@ -312,21 +321,65 @@ class PowrSync extends CommonObject
 	 */
 	private function logSync($productId, $powrRef, $oldPrice, $newPrice, $status, $message)
 	{
-		$sql = "INSERT INTO ".MAIN_DB_PREFIX."powrsync_log"
-			." (fk_product, ref_fourn, old_price, new_price, sync_status, message, datec, entity)"
-			." VALUES ("
-			.((int) $productId).","
-			."'".$this->db->escape($powrRef)."',"
-			.($oldPrice !== null ? price2num($oldPrice) : "NULL")   .","
-			.($newPrice !== null ? price2num($newPrice) : "NULL")   .","
-			."'".$this->db->escape($status)."',"
-			."'".$this->db->escape($message)."',"
-			."'".$this->db->idate(dol_now())."',"
-			.((int) $GLOBALS['conf']->entity)
-			.")";
+		$columns = $this->getLogColumns();
+		if (empty($columns)) {
+			return;
+		}
+
+		$fields = array();
+		$values = array();
+		$statusMap = array(
+			'updated' => PowrConnectScraper::LOG_OK,
+			'unchanged' => PowrConnectScraper::LOG_UPTODATE,
+			'error' => PowrConnectScraper::LOG_ERROR,
+		);
+		$numericStatus = isset($statusMap[$status]) ? (int) $statusMap[$status] : PowrConnectScraper::LOG_ERROR;
+
+		if (!empty($columns['fk_product'])) {
+			$fields[] = 'fk_product';
+			$values[] = (int) $productId;
+		}
+		if (!empty($columns['ref_fourn'])) {
+			$fields[] = 'ref_fourn';
+			$values[] = "'".$this->db->escape($powrRef)."'";
+		}
+		if (!empty($columns['old_price'])) {
+			$fields[] = 'old_price';
+			$values[] = ($oldPrice !== null ? (float) price2num($oldPrice) : 'NULL');
+		}
+		if (!empty($columns['new_price'])) {
+			$fields[] = 'new_price';
+			$values[] = ($newPrice !== null ? (float) price2num($newPrice) : 'NULL');
+		}
+		if (!empty($columns['status'])) {
+			$fields[] = 'status';
+			$values[] = $numericStatus;
+		}
+		if (!empty($columns['sync_status'])) {
+			$fields[] = 'sync_status';
+			$values[] = "'".$this->db->escape($status)."'";
+		}
+		if (!empty($columns['message'])) {
+			$fields[] = 'message';
+			$values[] = "'".$this->db->escape($message)."'";
+		}
+		if (!empty($columns['datec'])) {
+			$fields[] = 'datec';
+			$values[] = "'".$this->db->idate(dol_now())."'";
+		}
+		if (!empty($columns['entity'])) {
+			$fields[] = 'entity';
+			$values[] = (int) $GLOBALS['conf']->entity;
+		}
+
+		if (empty($fields)) {
+			return;
+		}
+
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."powrsync_log (".implode(', ', $fields).")";
+		$sql .= " VALUES (".implode(', ', $values).")";
 
 		$this->db->query($sql);
-		// On ne bloque pas sur une erreur de log
 	}
 
 	/**
@@ -337,8 +390,11 @@ class PowrSync extends CommonObject
 	 */
 	public function getLogs($limit = 100)
 	{
+		$columns = $this->getLogColumns();
+		$statusField = !empty($columns['sync_status']) ? 'l.sync_status' : 'l.status';
+
 		$sql = "SELECT l.rowid, l.fk_product, l.ref_fourn,"
-			." l.old_price, l.new_price, l.sync_status, l.message, l.datec,"
+			." l.old_price, l.new_price, ".$statusField." AS sync_status, l.message, l.datec,"
 			." p.ref AS product_ref, p.label AS product_label"
 			." FROM ".MAIN_DB_PREFIX."powrsync_log l"
 			." LEFT JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = l.fk_product"
@@ -365,5 +421,30 @@ class PowrSync extends CommonObject
 	{
 		$this->errors[] = $msg;
 		dol_syslog('PowrSync ERROR: '.$msg, LOG_ERR);
+	}
+
+	/**
+	 * Returns available columns for powrsync_log table.
+	 *
+	 * @return array
+	 */
+	private function getLogColumns()
+	{
+		if (is_array($this->logColumns)) {
+			return $this->logColumns;
+		}
+
+		$this->logColumns = array();
+		$resql = $this->db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log");
+		if (!$resql) {
+			return $this->logColumns;
+		}
+
+		while ($obj = $this->db->fetch_object($resql)) {
+			$this->logColumns[$obj->Field] = true;
+		}
+		$this->db->free($resql);
+
+		return $this->logColumns;
 	}
 }
