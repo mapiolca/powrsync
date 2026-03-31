@@ -279,7 +279,7 @@ $db->close();
  */
 function getProductsWithPowrRef($db, $fkSoc)
 {
-	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
+	$sql = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
@@ -296,6 +296,7 @@ function getProductsWithPowrRef($db, $fkSoc)
 	$result = array();
 	while ($obj = $db->fetch_object($resql)) {
 		$result[] = array(
+			'pfp_rowid' => (int) $obj->pfp_rowid,
 			'fk_product' => (int) $obj->fk_product,
 			'ref_product' => $obj->ref_product,
 			'label_product' => $obj->label_product,
@@ -377,8 +378,20 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 	}
 
 	$productFournisseur = new ProductFournisseur($db);
+	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
 	$productId = (int) $productRow['fk_product'];
 	$qty = max(1, (float) $productRow['quantity']);
+
+	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
+	// FR: Toujours renseigner les IDs de contexte avant update pour éviter le fallback delete/insert avec fk_product=0/fk_soc=0.
+	$productFournisseur->id = $productId;
+	$productFournisseur->fk_product = $productId;
+	$productFournisseur->fourn_id = (int) $fkSoc;
+	$productFournisseur->ref_fourn = $powrRef;
+	$productFournisseur->fourn_qty = $qty;
+	if ($priceLineId > 0) {
+		$productFournisseur->product_fourn_price_id = $priceLineId;
+	}
 
 	$fetchResult = $productFournisseur->fetch_product_fournisseur_price(
 		$productId,
