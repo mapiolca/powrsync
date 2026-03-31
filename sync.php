@@ -361,25 +361,28 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 {
 	$powrRef = $productRow['ref_fourn'];
 	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
+	$productId = (int) $productRow['fk_product'];
+	$currentPrice = isset($productRow['unitprice']) ? (float) $productRow['unitprice'] : null;
 
 	if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
 		$scraper->error = 'URL fournisseur non valide pour '.$powrRef;
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, null, $scraper->error);
 		return -1;
 	}
 
 	$newPrice = $scraper->testConnectionAndGetPrice($login, $password, $url, $powrRef);
 	if ($newPrice === false) {
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, null, $scraper->error);
 		return -1;
 	}
 
-	$currentPrice = (float) $productRow['unitprice'];
 	if (abs($newPrice - $currentPrice) <= 0.001) {
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_UPTODATE, $currentPrice, $newPrice, '');
 		return 2;
 	}
 
 	$productFournisseur = new ProductFournisseur($db);
 	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
-	$productId = (int) $productRow['fk_product'];
 	$qty = max(1, (float) $productRow['quantity']);
 
 	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
@@ -420,8 +423,98 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 
 	if ($res < 0) {
 		$scraper->error = !empty($productFournisseur->error) ? $productFournisseur->error : $db->lasterror();
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, $newPrice, $scraper->error);
 		return -1;
 	}
 
+	insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_OK, $currentPrice, $newPrice, '');
+
 	return 1;
+}
+
+/**
+ * Save one synchronization log row in llx_powrsync_log.
+ *
+ * @param	DoliDB	$db
+ * @param	array	$productRow
+ * @param	User	$user
+ * @param	int		$status
+ * @param	float	$oldPrice
+ * @param	float	$newPrice
+ * @param	string	$message
+ * @return	void
+ */
+function insertPowrSyncLog($db, $productRow, $user, $status, $oldPrice, $newPrice, $message)
+{
+	static $availableColumns = null;
+	if ($availableColumns === null) {
+		$availableColumns = array();
+		$resql = $db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log");
+		if ($resql) {
+			while ($obj = $db->fetch_object($resql)) {
+				$availableColumns[$obj->Field] = true;
+			}
+			$db->free($resql);
+		}
+	}
+
+	if (empty($availableColumns)) {
+		return;
+	}
+
+	$fields = array();
+	$values = array();
+
+	if (!empty($availableColumns['fk_product'])) {
+		$fields[] = 'fk_product';
+		$values[] = (int) $productRow['fk_product'];
+	}
+	if (!empty($availableColumns['ref_product'])) {
+		$fields[] = 'ref_product';
+		$values[] = "'".$db->escape($productRow['ref_product'])."'";
+	}
+	if (!empty($availableColumns['ref_fourn'])) {
+		$fields[] = 'ref_fourn';
+		$values[] = "'".$db->escape($productRow['ref_fourn'])."'";
+	}
+	if (!empty($availableColumns['old_price'])) {
+		$fields[] = 'old_price';
+		$values[] = ($oldPrice !== null ? (float) price2num($oldPrice) : 'NULL');
+	}
+	if (!empty($availableColumns['new_price'])) {
+		$fields[] = 'new_price';
+		$values[] = ($newPrice !== null ? (float) price2num($newPrice) : 'NULL');
+	}
+	if (!empty($availableColumns['status'])) {
+		$fields[] = 'status';
+		$values[] = (int) $status;
+	}
+	if (!empty($availableColumns['sync_status'])) {
+		$fields[] = 'sync_status';
+		$values[] = "'".$db->escape((string) $status)."'";
+	}
+	if (!empty($availableColumns['message'])) {
+		$fields[] = 'message';
+		$values[] = "'".$db->escape($message)."'";
+	}
+	if (!empty($availableColumns['fk_user_creat'])) {
+		$fields[] = 'fk_user_creat';
+		$values[] = (int) $user->id;
+	}
+	if (!empty($availableColumns['entity'])) {
+		$fields[] = 'entity';
+		$values[] = (int) $GLOBALS['conf']->entity;
+	}
+	if (!empty($availableColumns['datec'])) {
+		$fields[] = 'datec';
+		$values[] = "'".$db->idate(dol_now())."'";
+	}
+
+	if (empty($fields)) {
+		return;
+	}
+
+	$sql = "INSERT INTO ".MAIN_DB_PREFIX."powrsync_log (".implode(', ', $fields).")";
+	$sql .= " VALUES (".implode(', ', $values).")";
+	$db->query($sql);
 }

@@ -9,6 +9,10 @@
  */
 class PowrConnectScraper
 {
+	public const LOG_ERROR = -1;
+	public const LOG_OK = 1;
+	public const LOG_UPTODATE = 2;
+
 	private $baseUrl      = 'https://powr-connect.shop';
 	private $cookieFile   = '';
 	private $ch           = null;
