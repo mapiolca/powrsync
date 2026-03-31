@@ -141,7 +141,8 @@ class PowrSync extends CommonObject
 			$this->supplierId,
 			$powrRef,
 			(float) $product['qty_min_to_buy'],
-			$newPrice
+			$newPrice,
+			(int) $product['pfp_id']
 		);
 
 		if ($result < 0) {
@@ -224,13 +225,26 @@ class PowrSync extends CommonObject
 	 * @param  string $refFourn
 	 * @param  float  $qty
 	 * @param  float  $price  Prix HT
+	 * @param  int    $priceLineId  ID llx_product_fournisseur_price.rowid
 	 * @return int  >= 0 succès, < 0 erreur
 	 */
-	private function updateSupplierPrice($productId, $supplierId, $refFourn, $qty, $price)
+	private function updateSupplierPrice($productId, $supplierId, $refFourn, $qty, $price, $priceLineId = 0)
 	{
 		require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
 
 		$productFournisseur = new ProductFournisseur($this->db);
+		$qty = max(1, $qty);
+
+		// EN: Always initialize object context ids before update to prevent insert with fk_product/fk_soc at 0.
+		// FR: Toujours initialiser les IDs de contexte de l'objet avant update pour éviter un insert avec fk_product/fk_soc à 0.
+		$productFournisseur->id = (int) $productId;
+		$productFournisseur->fk_product = (int) $productId;
+		$productFournisseur->fourn_id = (int) $supplierId;
+		$productFournisseur->ref_fourn = $refFourn;
+		$productFournisseur->fourn_qty = $qty;
+		if ((int) $priceLineId > 0) {
+			$productFournisseur->product_fourn_price_id = (int) $priceLineId;
+		}
 
 		// Chercher si une ligne existe déjà
 		$result = $productFournisseur->fetch_product_fournisseur_price(
@@ -245,7 +259,7 @@ class PowrSync extends CommonObject
 			$productFournisseur->fk_product = $productId;
 			$productFournisseur->fourn_id   = $supplierId;
 			$productFournisseur->ref_fourn  = $refFourn;
-			$productFournisseur->fourn_qty  = max(1, $qty);
+			$productFournisseur->fourn_qty  = $qty;
 			$productFournisseur->fourn_price = $price;
 			$productFournisseur->fourn_tva_tx = 20.0; // TVA par défaut
 			$productFournisseur->fourn_price_expression = '';
@@ -253,7 +267,7 @@ class PowrSync extends CommonObject
 
 		// update_buyprice : met à jour le prix dans la table
 		$res = $productFournisseur->update_buyprice(
-			max(1, $qty),
+			$qty,
 			$price,
 			$GLOBALS['user'],
 			'HT',
