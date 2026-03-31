@@ -583,9 +583,63 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 		return -1;
 	}
 
+	$forceVatResult = forceSupplierPriceVatRate($db, $priceLineId, $productId, $fkSoc, $powrRef, $qty, $vatTx);
+	if ($forceVatResult < 0) {
+		$scraper->error = $db->lasterror();
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, $newPrice, $scraper->error);
+		return -1;
+	}
+
 	insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_OK, $currentPrice, $newPrice, '');
 
 	return 1;
+}
+
+/**
+ * Force VAT rate value on supplier price row after update.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$priceLineId
+ * @param	int		$productId
+ * @param	int		$fkSoc
+ * @param	string	$powrRef
+ * @param	float	$qty
+ * @param	float	$vatTx
+ * @return	int
+ */
+function forceSupplierPriceVatRate($db, $priceLineId, $productId, $fkSoc, $powrRef, $qty, $vatTx)
+{
+	$priceLineId = (int) $priceLineId;
+	if ($priceLineId <= 0) {
+		$sqlFind = "SELECT pfp.rowid";
+		$sqlFind .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+		$sqlFind .= " WHERE pfp.fk_product = ".((int) $productId);
+		$sqlFind .= " AND pfp.fk_soc = ".((int) $fkSoc);
+		$sqlFind .= " AND pfp.ref_fourn = '".$db->escape($powrRef)."'";
+		$sqlFind .= " AND pfp.quantity = ".price2num($qty);
+		$sqlFind .= " ORDER BY pfp.rowid DESC";
+		$sqlFind .= " LIMIT 1";
+
+		$resqlFind = $db->query($sqlFind);
+		if (!$resqlFind) {
+			return -1;
+		}
+		$objFind = $db->fetch_object($resqlFind);
+		$priceLineId = !empty($objFind) ? (int) $objFind->rowid : 0;
+		if ($resqlFind) {
+			$db->free($resqlFind);
+		}
+	}
+
+	if ($priceLineId <= 0) {
+		return -1;
+	}
+
+	$sqlUpdate = "UPDATE ".MAIN_DB_PREFIX."product_fournisseur_price";
+	$sqlUpdate .= " SET tva_tx = ".price2num($vatTx);
+	$sqlUpdate .= " WHERE rowid = ".$priceLineId;
+
+	return $db->query($sqlUpdate) ? 1 : -1;
 }
 
 /**

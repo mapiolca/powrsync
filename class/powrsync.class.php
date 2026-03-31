@@ -308,7 +308,60 @@ class PowrSync extends CommonObject
 			$this->error = 'update_buyprice échoué pour '.$refFourn.' : '.$productFournisseur->error;
 			return -1;
 		}
+
+		$forceVatResult = $this->forceSupplierPriceVatRate((int) $priceLineId, (int) $productId, (int) $supplierId, $refFourn, (float) $qty, (float) $vatTx);
+		if ($forceVatResult < 0) {
+			$this->error = 'VAT update failed for '.$refFourn.' : '.$this->db->lasterror();
+			return -1;
+		}
+
 		return 1;
+	}
+
+	/**
+	 * Force VAT rate value on supplier price row after update.
+	 *
+	 * @param	int		$priceLineId
+	 * @param	int		$productId
+	 * @param	int		$supplierId
+	 * @param	string	$refFourn
+	 * @param	float	$qty
+	 * @param	float	$vatTx
+	 * @return	int
+	 */
+	private function forceSupplierPriceVatRate($priceLineId, $productId, $supplierId, $refFourn, $qty, $vatTx)
+	{
+		$priceLineId = (int) $priceLineId;
+		if ($priceLineId <= 0) {
+			$sqlFind = "SELECT pfp.rowid";
+			$sqlFind .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+			$sqlFind .= " WHERE pfp.fk_product = ".((int) $productId);
+			$sqlFind .= " AND pfp.fk_soc = ".((int) $supplierId);
+			$sqlFind .= " AND pfp.ref_fourn = '".$this->db->escape($refFourn)."'";
+			$sqlFind .= " AND pfp.quantity = ".price2num($qty);
+			$sqlFind .= " ORDER BY pfp.rowid DESC";
+			$sqlFind .= " LIMIT 1";
+
+			$resqlFind = $this->db->query($sqlFind);
+			if (!$resqlFind) {
+				return -1;
+			}
+			$objFind = $this->db->fetch_object($resqlFind);
+			$priceLineId = !empty($objFind) ? (int) $objFind->rowid : 0;
+			if ($resqlFind) {
+				$this->db->free($resqlFind);
+			}
+		}
+
+		if ($priceLineId <= 0) {
+			return -1;
+		}
+
+		$sqlUpdate = "UPDATE ".MAIN_DB_PREFIX."product_fournisseur_price";
+		$sqlUpdate .= " SET tva_tx = ".price2num($vatTx);
+		$sqlUpdate .= " WHERE rowid = ".$priceLineId;
+
+		return $this->db->query($sqlUpdate) ? 1 : -1;
 	}
 
 	// ─── Journal de synchronisation ────────────────────────────────────────
