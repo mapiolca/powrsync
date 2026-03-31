@@ -152,11 +152,26 @@ class PowrConnectScraper
 	}
 
 	/**
-	 * Parse le prix dans le HTML de la fiche produit
-	 * ⚠ Sélecteurs à adapter impérativement après inspection du HTML réel
+	 * Parse le prix HT dans le HTML de la fiche produit POwR Connect
+	 *
+	 * Le prix se trouve dans un bloc avec la classe "font-semibold leading-none"
+	 * à l'intérieur d'un conteneur "bg-secondary-100" (promo) ou "bg-grey-50" (normal).
+	 * Format typique : <p class="text-[15px] font-semibold leading-none">661,38&nbsp;€</p>
 	 */
 	private function parsePrice($html, $powrRef)
 	{
+		// Stratégie 1 : regex directe sur le pattern de prix affiché
+		// Cherche le prix dans le bloc "À l'unité" (premier prix font-semibold leading-none suivi de €)
+		if (preg_match_all('/font-semibold leading-none["\'][^>]*>([0-9\s\xc2\xa0.,]+)\s*(?:&nbsp;)?€/u', $html, $matches)) {
+			foreach ($matches[1] as $rawPrice) {
+				$price = $this->cleanPrice($rawPrice.'€');
+				if ($price !== false && $price > 0) {
+					return $price;
+				}
+			}
+		}
+
+		// Stratégie 2 : DOM/XPath fallback
 		libxml_use_internal_errors(true);
 		$dom = new DOMDocument();
 		$dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
@@ -164,7 +179,21 @@ class PowrConnectScraper
 
 		$xpath = new DOMXPath($dom);
 
-		// Stratégie 1 : JSON-LD schema.org (le plus fiable si présent)
+		// Cherche les éléments avec font-semibold et leading-none qui contiennent un prix
+		$priceNodes = $xpath->query('//*[contains(@class,"font-semibold") and contains(@class,"leading-none")]');
+		if ($priceNodes) {
+			foreach ($priceNodes as $node) {
+				$text = trim($node->textContent);
+				if (preg_match('/[0-9]/', $text) && mb_strpos($text, '€') !== false) {
+					$price = $this->cleanPrice($text);
+					if ($price !== false && $price > 0) {
+						return $price;
+					}
+				}
+			}
+		}
+
+		// Stratégie 3 : JSON-LD schema.org (si le prix y est ajouté un jour)
 		foreach ($xpath->query('//script[@type="application/ld+json"]') as $script) {
 			$json = json_decode(trim($script->textContent), true);
 			if (!empty($json['offers']['price'])) {
@@ -172,23 +201,7 @@ class PowrConnectScraper
 			}
 		}
 
-		// Stratégie 2 : classe CSS contenant le prix
-		// ⚠ À adapter : inspecter l'élément du prix avec les devtools
-		$priceNodes = $xpath->query('//*[contains(@class,"product-price") or contains(@class,"prix-ht") or contains(@class,"price")]');
-		if ($priceNodes && $priceNodes->length > 0) {
-			return $this->cleanPrice(trim($priceNodes->item(0)->textContent));
-		}
-
-		// Stratégie 3 : attribut data-price
-		$els = $xpath->query('//*[@data-price]');
-		if ($els && $els->length > 0) {
-			$val = $els->item(0)->getAttribute('data-price');
-			if ($val !== '') {
-				return (float) $val;
-			}
-		}
-
-		$this->error = 'Prix non trouvé pour '.$powrRef.' — adapter les sélecteurs dans parsePrice()';
+		$this->error = 'Prix non trouvé pour '.$powrRef.' — vérifier la structure HTML de la page';
 		return false;
 	}
 
