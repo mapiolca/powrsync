@@ -13,7 +13,7 @@ $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
 if (!isModEnabled('powrsync')) {
 	accessforbidden('Module PowrSync non activé');
 }
-if (!$user->hasRight('powrsync', 'sync', 'read')) {
+if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 	accessforbidden();
 }
 
@@ -21,7 +21,8 @@ $action     = GETPOST('action', 'aZ09');
 $productId  = GETPOST('productid', 'int');
 $confirm    = GETPOST('confirm', 'alpha');
 
-$scraper = new PowrConnectScraper($db);
+$tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
+$scraper = new PowrConnectScraper($tempDir);
 $fkSoc   = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 $email   = getDolGlobalString('POWRSYNC_LOGIN');
 $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
@@ -30,7 +31,7 @@ $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
 // ACTIONS
 // =========================================================================
 
-if ($user->hasRight('powrsync', 'sync', 'write')) {
+if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
 		$ret = $scraper->syncAllPrices();
@@ -46,7 +47,7 @@ if ($user->hasRight('powrsync', 'sync', 'write')) {
 	// --- Synchronisation d'UN seul produit (AJAX ou bouton) ---
 	if ($action == 'syncone' && $productId > 0) {
 		// Récupérer la ligne prix de ce produit
-		$products = $scraper->getProductsWithPowrRef($fkSoc);
+		$products = getProductsWithPowrRef($db, $fkSoc);
 		$found = array();
 		foreach ($products as $p) {
 			if ((int) $p['fk_product'] === $productId) {
@@ -112,7 +113,7 @@ if ($action == 'syncall') {
 }
 
 // Bouton de sync global
-if ($user->hasRight('powrsync', 'sync', 'write') && $action != 'syncall') {
+if ($user->hasRight('powrsync', 'synclog', 'write') && $action != 'syncall') {
 	print '<div class="tabsAction">';
 	print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=syncall&token='.newToken().'">';
 	print img_picto('', 'refresh', 'class="pictofixedwidth"');
@@ -122,10 +123,10 @@ if ($user->hasRight('powrsync', 'sync', 'write') && $action != 'syncall') {
 }
 
 // Liste des produits avec ref POwR Connect
-$products = $scraper->getProductsWithPowrRef($fkSoc);
+$products = getProductsWithPowrRef($db, $fkSoc);
 
 if ($products === false) {
-	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($scraper->error).'</div>';
+	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($db->lasterror()).'</div>';
 	llxFooter();
 	$db->close();
 	exit;
@@ -234,7 +235,7 @@ if (empty($products)) {
 
 		// Bouton sync individuel
 		print '<td class="center">';
-		if ($user->hasRight('powrsync', 'sync', 'write')) {
+		if ($user->hasRight('powrsync', 'synclog', 'write')) {
 			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&productid='.$pid.'&token='.newToken().'">';
 			print img_picto($langs->trans('Sync'), 'refresh');
 			print '</a>';
@@ -254,6 +255,46 @@ print '</p>';
 
 llxFooter();
 $db->close();
+
+// =========================================================================
+// HELPER FUNCTION: syncable products
+// =========================================================================
+
+/**
+ * Returns supplier product rows for POwR Connect sync.
+ *
+ * @param	DoliDB	$db
+ * @param	int		$fkSoc
+ * @return	array|false
+ */
+function getProductsWithPowrRef($db, $fkSoc)
+{
+	$sql = "SELECT pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice";
+	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
+	$sql .= " AND pfp.entity IN (".getEntity('product').")";
+	$sql .= " AND pfp.status = 1";
+	$sql .= " ORDER BY p.ref ASC";
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return false;
+	}
+
+	$result = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$result[] = array(
+			'fk_product' => (int) $obj->fk_product,
+			'ref_product' => $obj->ref_product,
+			'label_product' => $obj->label_product,
+			'ref_fourn' => $obj->ref_fourn,
+			'unitprice' => (float) $obj->unitprice,
+		);
+	}
+
+	return $result;
+}
 
 // =========================================================================
 // FONCTION UTILITAIRE : derniers logs par produit
