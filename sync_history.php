@@ -35,6 +35,7 @@ if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 }
 
 $form = new Form($db);
+$fkSoc = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 
 $limit = GETPOSTINT('limit') > 0 ? GETPOSTINT('limit') : $conf->liste_limit;
 $sortfield = GETPOST('sortfield', 'aZ09comma') ? GETPOST('sortfield', 'aZ09comma') : 'l.datec';
@@ -112,6 +113,17 @@ if ($nbVisibleColumns === 0) {
 $sqlselect = "SELECT l.rowid, l.datec, l.fk_product, l.old_price, l.new_price, l.status, l.message";
 $sqlselect .= ", ".($hasRefProductColumn ? "l.ref_product" : "p.ref")." AS ref_product";
 $sqlselect .= ", ".($hasRefFournColumn ? "l.ref_fourn" : "''")." AS ref_fourn";
+$supplierUrlSelect = "''";
+if ($hasRefFournColumn) {
+	$supplierUrlSelect = "(SELECT ef.supplier_url FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
+	$supplierUrlSelect .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
+	$supplierUrlSelect .= " WHERE pfp.fk_product = l.fk_product AND pfp.ref_fourn = l.ref_fourn";
+	if ($fkSoc > 0) {
+		$supplierUrlSelect .= " AND pfp.fk_soc = ".((int) $fkSoc);
+	}
+	$supplierUrlSelect .= " ORDER BY pfp.rowid DESC LIMIT 1)";
+}
+$sqlselect .= ", ".$supplierUrlSelect." AS supplier_url";
 
 $sqlfrom = " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
 $sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
@@ -282,7 +294,16 @@ if ($resql) {
 			print '</td>';
 		}
 		if (!empty($arrayfields['ref_fourn']['checked'])) {
-			print '<td>'.dol_escape_htmltag($obj->ref_fourn).'</td>';
+			print '<td>';
+			if (!empty($obj->supplier_url)) {
+				print '<a href="'.dol_escape_htmltag($obj->supplier_url).'" target="_blank" rel="noopener">';
+				print dol_escape_htmltag($obj->ref_fourn);
+				print ' '.img_picto('', 'external-link-alt', 'class="opacitymedium"');
+				print '</a>';
+			} else {
+				print dol_escape_htmltag($obj->ref_fourn);
+			}
+			print '</td>';
 		}
 		if (!empty($arrayfields['old_price']['checked'])) {
 			print '<td class="right">'.($oldPrice !== null ? price($oldPrice) : '-').'</td>';
