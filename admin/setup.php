@@ -3,29 +3,42 @@
  * Page de configuration
  */
 
-// Protection accès direct
-if (!defined('NOREQUIRESOC')) {
-	define('NOREQUIRESOC', '1');
-}
-
-// EN: Load Dolibarr environment with fallback paths.
+// Load Dolibarr environment
 $res = 0;
-if (!$res && file_exists(__DIR__.'/../main.inc.php')) {
-		$res = require_once __DIR__.'/../main.inc.php';
+// Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
+if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
+	$res = @include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
 }
-if (!$res && file_exists(__DIR__.'/../../main.inc.php')) {
-		$res = require_once __DIR__.'/../../main.inc.php';
+// Try main.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
+$tmp = empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];
+$tmp2 = realpath(__FILE__);
+$i = strlen($tmp) - 1;
+$j = strlen($tmp2) - 1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i] == $tmp2[$j]) {
+	$i--;
+	$j--;
 }
-if (!$res && file_exists(__DIR__.'/../../../main.inc.php')) {
-		$res = require_once __DIR__.'/../../../main.inc.php';
+if (!$res && $i > 0 && file_exists(substr($tmp, 0, ($i + 1))."/main.inc.php")) {
+	$res = @include substr($tmp, 0, ($i + 1))."/main.inc.php";
+}
+if (!$res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php")) {
+	$res = @include dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php";
+}
+// Try main.inc.php using relative path
+if (!$res && file_exists("../../main.inc.php")) {
+	$res = @include "../../main.inc.php";
+}
+if (!$res && file_exists("../../../main.inc.php")) {
+	$res = @include "../../../main.inc.php";
 }
 if (!$res) {
-die('Include of main fails');
+	die("Include of main fails");
 }
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/pdf.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+require_once '../lib/powrsync.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/cron/class/cronjob.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 
@@ -40,6 +53,40 @@ $action = GETPOST('action', 'aZ09');
 // =========================================================================
 // ACTIONS
 // =========================================================================
+
+if ($action == 'testconnect') {
+	$testUrl = GETPOST('POWRSYNC_TEST_URL', 'alpha');
+	$login   = getDolGlobalString('POWRSYNC_LOGIN');
+	$passEnc = getDolGlobalString('POWRSYNC_PASSWORD');
+
+	if (empty($login) || empty($passEnc)) {
+		setEventMessages('Veuillez d\'abord enregistrer vos identifiants avant de tester.', null, 'errors');
+	} elseif (empty($testUrl) || !filter_var($testUrl, FILTER_VALIDATE_URL)) {
+		setEventMessages('Veuillez saisir une URL de produit valide pour le test.', null, 'errors');
+	} else {
+		require_once __DIR__.'/../class/powrconnectscraper.class.php';
+		$tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
+		$scraper = new PowrConnectScraper($tempDir);
+
+		$password = dol_decode($passEnc);
+		$loginResult = $scraper->login($login, $password);
+		$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'none';
+
+		if ($loginResult < 0) {
+			setEventMessages('Connexion échouée : '.$scraper->error, null, 'errors');
+		} else {
+			$price = $scraper->getPrice('TEST', $testUrl);
+			if ($price === false) {
+				$connectionLabel = ($loginState === 'already_connected') ? 'Déjà connecté' : 'Connexion OK';
+				setEventMessages($connectionLabel.' mais impossible de lire le prix : '.$scraper->error, null, 'warnings');
+			} else {
+				$connectionLabel = ($loginState === 'already_connected') ? 'Déjà connecté' : 'Connexion OK';
+				setEventMessages($connectionLabel.' — Prix récupéré : '.price($price, 0, $langs, 1, -1, 2, $conf->currency), null, 'mesgs');
+			}
+		}
+		$scraper->close();
+	}
+}
 
 if ($action == 'update') {
 	$login       = GETPOST('POWRSYNC_LOGIN', 'email');
@@ -164,6 +211,35 @@ print '<input type="submit" class="button button-save" value="'.$langs->trans('S
 print '</div>';
 
 print '</form>';
+
+// Bloc test de connexion
+if ($hasPassword && !empty($currentLogin)) {
+	print '<br>';
+	print '<form method="POST" action="'.$_SERVER['PHP_SELF'].'">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="testconnect">';
+
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print '<td colspan="3">'.$langs->trans('PowrSyncTestConnection').'</td>';
+	print '</tr>';
+
+	print '<tr class="oddeven">';
+	print '<td class="titlefield">'.$langs->trans('PowrSyncTestUrl').'</td>';
+	print '<td>';
+	print '<input type="url" name="POWRSYNC_TEST_URL" class="minwidth400" value="'.dol_escape_htmltag(GETPOST('POWRSYNC_TEST_URL', 'alpha')).'" placeholder="https://powr-connect.shop/produit/...">';
+	print '</td>';
+	print '<td class="opacitymedium">'.$langs->trans('PowrSyncTestUrlHelp').'</td>';
+	print '</tr>';
+
+	print '</table>';
+
+	print '<div class="center" style="margin-top: 8px;">';
+	print '<input type="submit" class="button" value="'.$langs->trans('PowrSyncTestButton').'">';
+	print '</div>';
+
+	print '</form>';
+}
 
 // Info sur la configuration actuelle
 if ($currentSupplierId > 0 && !empty($currentLogin)) {

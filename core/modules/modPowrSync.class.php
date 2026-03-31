@@ -136,13 +136,38 @@ class modPowrSync extends DolibarrModules
 
 	public function init($options = '')
 	{
-		$sql = array();
-		// Chargement des tables SQL depuis le dossier sql/
-		$result = $this->_load_tables('/powrsync/sql/');
+		$result = $this->_init(array(), $options);
 		if ($result < 0) {
 			return -1;
 		}
-		return $this->_init($sql, $options);
+
+		// Créer l'extrafield "URL fournisseur" sur product_fournisseur_price si absent
+		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+		$extrafields = new ExtraFields($this->db);
+		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
+		if (!isset($existing['powrsync_url'])) {
+			$extrafields->addExtraField(
+				'powrsync_url',                      // attrname
+				'URL produit fournisseur (POwR)',     // label
+				'url',                               // type
+				100,                                  // pos
+				'',                                   // size
+				'product_fournisseur_price',          // elementtype
+				0,                                    // unique
+				0,                                    // required
+				'',                                   // default
+				'',                                   // param
+				1,                                    // alwayseditable
+				'',                                   // perms
+				0,                                    // list (hidden in lists)
+				'',                                   // help
+				'',                                   // computed
+				$conf->entity,                        // entity
+				0                                     // langfile
+			);
+		}
+
+		return $result;
 	}
 
 	public function remove($options = '')
