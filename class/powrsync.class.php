@@ -23,6 +23,7 @@ class PowrSync extends CommonObject
 
 	// Identifiant interne du fournisseur POwR Connect
 	private $supplierId = 0;
+	private $hasLegacyPowrUrlColumn = null;
 
 	public function __construct(DoliDB $db)
 	{
@@ -110,10 +111,13 @@ class PowrSync extends CommonObject
 		$powrRef    = $product['ref_fourn'];
 		$productId  = $product['product_id'];
 		$currentPrice = (float) $product['unit_price'];
-		$powrUrl    = !empty($product['powrsync_url']) ? $product['powrsync_url'] : '';
+		$powrUrl    = !empty($product['supplier_url']) ? $product['supplier_url'] : '';
+		if (empty($powrUrl) && !empty($product['powrsync_url'])) {
+			$powrUrl = $product['powrsync_url'];
+		}
 
 		if (empty($powrUrl)) {
-			$this->addError('Ref '.$powrRef.' : URL fournisseur non renseignée (extrafield powrsync_url)');
+			$this->addError('Ref '.$powrRef.' : URL fournisseur non renseignée (extrafield supplier_url)');
 			$this->logSync($productId, $powrRef, $currentPrice, null, 'error', 'URL fournisseur manquante');
 			return -1;
 		}
@@ -182,13 +186,18 @@ class PowrSync extends CommonObject
 	 */
 	private function getProductsWithPowrRef()
 	{
+		$hasLegacyPowrUrlColumn = $this->hasLegacyPowrSyncUrlColumn();
+
 		$sql = "SELECT pfp.fk_product AS product_id,"
 			." pfp.ref_fourn,"
 			." pfp.unit_price,"
 			." pfp.quantity AS qty_min_to_buy,"
 			." pfp.rowid AS pfp_id,"
-			." extra.powrsync_url"
-			." FROM ".MAIN_DB_PREFIX."product_fournisseur_price pfp"
+			." extra.supplier_url";
+		if ($hasLegacyPowrUrlColumn) {
+			$sql .= ", extra.powrsync_url";
+		}
+		$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price pfp"
 			." INNER JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = pfp.fk_product"
 			." LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields extra ON extra.fk_object = pfp.rowid"
 			." WHERE pfp.fk_soc = ".((int) $this->supplierId)
@@ -204,16 +213,44 @@ class PowrSync extends CommonObject
 
 		$list = array();
 		while ($obj = $this->db->fetch_object($res)) {
+			$legacyPowrUrl = '';
+			if ($hasLegacyPowrUrlColumn && !empty($obj->powrsync_url)) {
+				$legacyPowrUrl = $obj->powrsync_url;
+			}
+
 			$list[] = array(
 				'product_id'    => (int) $obj->product_id,
 				'ref_fourn'     => $obj->ref_fourn,
 				'unit_price'    => (float) $obj->unit_price,
 				'qty_min_to_buy' => (float) $obj->qty_min_to_buy,
 				'pfp_id'        => (int) $obj->pfp_id,
-				'powrsync_url'  => !empty($obj->powrsync_url) ? $obj->powrsync_url : '',
+				'supplier_url'  => !empty($obj->supplier_url) ? $obj->supplier_url : '',
+				'powrsync_url'  => $legacyPowrUrl,
 			);
 		}
 		return $list;
+	}
+
+	/**
+	 * Check whether legacy extrafield column "powrsync_url" still exists.
+	 *
+	 * @return bool
+	 */
+	private function hasLegacyPowrSyncUrlColumn()
+	{
+		if ($this->hasLegacyPowrUrlColumn !== null) {
+			return $this->hasLegacyPowrUrlColumn;
+		}
+
+		$sql = "SHOW COLUMNS FROM ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields LIKE 'powrsync_url'";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->hasLegacyPowrUrlColumn = false;
+			return $this->hasLegacyPowrUrlColumn;
+		}
+
+		$this->hasLegacyPowrUrlColumn = ($this->db->num_rows($resql) > 0);
+		return $this->hasLegacyPowrUrlColumn;
 	}
 
 	/**

@@ -141,14 +141,14 @@ class modPowrSync extends DolibarrModules
 			return -1;
 		}
 
-		// Créer l'extrafield "URL fournisseur" sur product_fournisseur_price si absent
+		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
 		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
-		if (!isset($existing['powrsync_url'])) {
+		if (!isset($existing['supplier_url'])) {
 			$extrafields->addExtraField(
-				'powrsync_url',                      // attrname
-				'URL produit fournisseur (POwR)',     // label
+				'supplier_url',                     // attrname
+				'Supplier product URL',             // label
 				'url',                               // type
 				100,                                  // pos
 				'',                                   // size
@@ -165,6 +165,16 @@ class modPowrSync extends DolibarrModules
 				$conf->entity,                        // entity
 				0                                     // langfile
 			);
+		}
+
+		// Backward compatibility: copy existing data from legacy "powrsync_url" if needed
+		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
+		if (isset($existing['powrsync_url']) && isset($existing['supplier_url'])) {
+			$sql = "UPDATE ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields";
+			$sql .= " SET supplier_url = powrsync_url";
+			$sql .= " WHERE (supplier_url IS NULL OR supplier_url = '')";
+			$sql .= " AND powrsync_url IS NOT NULL AND powrsync_url <> ''";
+			$this->db->query($sql);
 		}
 
 		return $result;
