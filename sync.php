@@ -42,23 +42,15 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 		if ($productsToSync === false) {
 			setEventMessages($langs->trans('PowrSyncDbError').': '.$db->lasterror(), null, 'errors');
 		} else {
-			$retLogin = $scraper->login(
-				getDolGlobalString('POWRSYNC_LOGIN'),
-				dol_decode(getDolGlobalString('POWRSYNC_PASSWORD'))
-			);
-			if ($retLogin < 0) {
-				setEventMessages($scraper->error, null, 'errors');
-			} else {
-				foreach ($productsToSync as $productToSync) {
-					$syncStatus = syncOneSupplierProductPrice($db, $scraper, $productToSync, $fkSoc, $user);
-					if ($syncStatus > 0) {
-						$updatedCount++;
-					} elseif ($syncStatus < 0) {
-						$errorMessages[] = $productToSync['ref_fourn'].' : '.$scraper->error;
-					}
+			foreach ($productsToSync as $productToSync) {
+				$syncStatus = syncOneSupplierProductPrice($db, $scraper, $productToSync, $fkSoc, $user, getDolGlobalString('POWRSYNC_LOGIN'), dol_decode(getDolGlobalString('POWRSYNC_PASSWORD')));
+				if ($syncStatus > 0) {
+					$updatedCount++;
+				} elseif ($syncStatus < 0) {
+					$errorMessages[] = $productToSync['ref_fourn'].' : '.$scraper->error;
 				}
-				setEventMessages($langs->trans('PowrSyncDone', $updatedCount), $errorMessages, empty($errorMessages) ? 'mesgs' : 'warnings');
 			}
+			setEventMessages($langs->trans('PowrSyncDone', $updatedCount), $errorMessages, empty($errorMessages) ? 'mesgs' : 'warnings');
 		}
 		$scraper->close();
 		header('Location: '.$_SERVER['PHP_SELF']);
@@ -80,21 +72,13 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 		if (empty($found)) {
 			setEventMessages($langs->trans('PowrSyncProductNotFound'), null, 'errors');
 		} else {
-			$ret2 = $scraper->login(
-				getDolGlobalString('POWRSYNC_LOGIN'),
-				dol_decode(getDolGlobalString('POWRSYNC_PASSWORD'))
-			);
-			if ($ret2 < 0) {
-				setEventMessages($scraper->error, null, 'errors');
+			$ret2 = syncOneSupplierProductPrice($db, $scraper, $found, $fkSoc, $user, getDolGlobalString('POWRSYNC_LOGIN'), dol_decode(getDolGlobalString('POWRSYNC_PASSWORD')));
+			if ($ret2 == 1) {
+				setEventMessages($langs->trans('PowrSyncUpdated', $found['ref_product'], $found['ref_fourn']), null, 'mesgs');
+			} elseif ($ret2 == 2) {
+				setEventMessages($langs->trans('PowrSyncUpToDate', $found['ref_product']), null, 'warnings');
 			} else {
-				$ret2 = syncOneSupplierProductPrice($db, $scraper, $found, $fkSoc, $user);
-				if ($ret2 == 1) {
-					setEventMessages($langs->trans('PowrSyncUpdated', $found['ref_product'], $found['ref_fourn']), null, 'mesgs');
-				} elseif ($ret2 == 2) {
-					setEventMessages($langs->trans('PowrSyncUpToDate', $found['ref_product']), null, 'warnings');
-				} else {
-					setEventMessages($scraper->error, null, 'errors');
-				}
+				setEventMessages($scraper->error, null, 'errors');
 			}
 		}
 		$scraper->close();
@@ -368,9 +352,11 @@ function getLastLogsByProduct($db, $fkSoc)
  * @param	array				$productRow
  * @param	int					$fkSoc
  * @param	User				$user
+ * @param	string				$login
+ * @param	string				$password
  * @return	int
  */
-function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user)
+function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, $login, $password)
 {
 	$powrRef = $productRow['ref_fourn'];
 	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
@@ -380,7 +366,7 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user)
 		return -1;
 	}
 
-	$newPrice = $scraper->getPrice($powrRef, $url);
+	$newPrice = $scraper->testConnectionAndGetPrice($login, $password, $url, $powrRef);
 	if ($newPrice === false) {
 		return -1;
 	}

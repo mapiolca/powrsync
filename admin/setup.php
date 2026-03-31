@@ -69,13 +69,12 @@ if ($action == 'testconnect') {
 		$scraper = new PowrConnectScraper($tempDir);
 
 		$password = dol_decode($passEnc);
-		$loginResult = $scraper->login($login, $password);
+		$price = $scraper->testConnectionAndGetPrice($login, $password, $testUrl, 'TEST');
 		$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'none';
 
-		if ($loginResult < 0) {
+		if ($price === false && $loginState === 'login_failed') {
 			setEventMessages('Connexion échouée : '.$scraper->error, null, 'errors');
 		} else {
-			$price = $scraper->getPrice('TEST', $testUrl);
 			if ($price === false) {
 				$connectionLabel = ($loginState === 'already_connected') ? 'Déjà connecté' : 'Connexion OK';
 				setEventMessages($connectionLabel.' mais impossible de lire le prix : '.$scraper->error, null, 'warnings');
