@@ -30,28 +30,6 @@ $fkSoc   = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 $email   = getDolGlobalString('POWRSYNC_LOGIN');
 $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
 
-// Count total nb of records
-$nbtotalofrecords = '';
-if (!getDolGlobalInt('MAIN_DISABLE_FULL_SCANLIST')) {
-	/* The fast and low memory method to get and count full list converts the sql into a sql count */
-	$sqlforcount = preg_replace('/^'.preg_quote($sqlfields, '/').'/', 'SELECT COUNT(*) as nbtotalofrecords', $sql);
-	$sqlforcount = preg_replace('/GROUP BY .*$/', '', $sqlforcount);
-
-	$resql = $db->query($sqlforcount);
-	if ($resql) {
-		$objforcount = $db->fetch_object($resql);
-		$nbtotalofrecords = $objforcount->nbtotalofrecords;
-	} else {
-		dol_print_error($db);
-	}
-
-	if (($page * $limit) > $nbtotalofrecords) {	// if total resultset is smaller than the paging size (filtering), goto and load page 0
-		$page = 0;
-		$offset = 0;
-	}
-	$db->free($resql);
-}
-
 // =========================================================================
 // ACTIONS
 // =========================================================================
