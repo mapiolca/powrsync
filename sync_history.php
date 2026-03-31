@@ -160,7 +160,7 @@ if ($rescount) {
 
 $contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : 'powrsyncsynchistory';
 $varpage = empty($contextpage) ? $_SERVER['PHP_SELF'] : $contextpage;
-$morehtmlright = $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, 0);
+$selectedfieldshtml = $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, (!empty($conf->main_checkbox_left_column) ? 1 : 0));
 
 $param = '';
 if ($search_ref_fourn !== '') {
@@ -178,10 +178,10 @@ foreach ($arrayfields as $key => $meta) {
 llxHeader('', $langs->trans('PowrSyncLog'));
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, 'clock', 0, $morehtmlright, '', $limit, 0, 0, 1);
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, 'clock', 0, '', '', $limit, 0, 0, 1);
 
 print '<div class="div-table-responsive">';
-print '<table class="tagtable liste">';
+print '<table class="tagtable nobottomiftotal noborder liste">';
 
 print '<tr class="liste_titre_filter">';
 if (!empty($arrayfields['datec']['checked'])) {
@@ -219,11 +219,9 @@ if (!empty($arrayfields['status']['checked'])) {
 	print '</td>';
 }
 if (!empty($arrayfields['message']['checked'])) {
-	print '<td class="right">';
-	print '<button class="button small" type="submit" name="button_search">'.$langs->trans('Search').'</button> ';
-	print '<button class="button button-cancel small" type="submit" name="button_removefilter" value="x">'.$langs->trans('RemoveFilter').'</button>';
-	print '</td>';
+	print '<td></td>';
 }
+print '<td class="liste_titre center maxwidthsearch">'.$form->showFilterButtons('left').'</td>';
 print '</tr>';
 
 print '<tr class="liste_titre">';
@@ -251,6 +249,7 @@ if (!empty($arrayfields['status']['checked'])) {
 if (!empty($arrayfields['message']['checked'])) {
 	print '<td>'.$langs->trans('Message').'</td>';
 }
+print '<td class="liste_titre right">'.$selectedfieldshtml.'</td>';
 print '</tr>';
 
 if ($resql) {
@@ -309,11 +308,12 @@ if ($resql) {
 		if (!empty($arrayfields['message']['checked'])) {
 			print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
 		}
+		print '<td></td>';
 		print '</tr>';
 	}
 	$db->free($resql);
 } else {
-	print '<tr class="oddeven"><td colspan="'.$nbVisibleColumns.'"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
+	print '<tr class="oddeven"><td colspan="'.($nbVisibleColumns + 1).'"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
 }
 
 print '</table>';
