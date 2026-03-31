@@ -393,12 +393,10 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 		$productFournisseur->product_fourn_price_id = $priceLineId;
 	}
 
-	$fetchResult = $productFournisseur->fetch_product_fournisseur_price(
-		$productId,
-		(int) $fkSoc,
-		$powrRef,
-		$qty
-	);
+	$fetchResult = -1;
+	if ($priceLineId > 0) {
+		$fetchResult = $productFournisseur->fetch_product_fournisseur_price($priceLineId);
+	}
 	if ($fetchResult < 0) {
 		$productFournisseur->fk_product = $productId;
 		$productFournisseur->fourn_id = (int) $fkSoc;
