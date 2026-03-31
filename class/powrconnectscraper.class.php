@@ -163,7 +163,7 @@ class PowrConnectScraper
 
 		$postUrl = $formConfig['action'];
 		if (empty($postUrl)) {
-			$postUrl = $this->baseUrl.'/connexion?redirect=%2F&_data=routes%2Fconnexion';
+			$postUrl = $this->baseUrl.'/connexion';
 		}
 
 		$postFields = $formConfig['hidden'];
