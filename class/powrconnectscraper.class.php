@@ -15,6 +15,7 @@ class PowrConnectScraper
 	private $loggedIn     = false;
 	private $requestDelay = 800000; // µs entre requêtes (0.8 s)
 	private $userAgent    = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
+	private $lastCsrfRaw  = '';
 
 	public $error = '';
 
@@ -160,6 +161,9 @@ class PowrConnectScraper
 		if (!isset($postFields['stayConnected'])) {
 			$postFields['stayConnected'] = 'on';
 		}
+		if (!isset($postFields['_action']) || $postFields['_action'] === '') {
+			$postFields['_action'] = 'login';
+		}
 
 		// EN: If csrf is absent from form, fallback to cookie-derived value.
 		// FR: Si csrf est absent du formulaire, fallback via la valeur issue du cookie.
@@ -192,6 +196,21 @@ class PowrConnectScraper
 
 		$this->debug('POST login → HTTP '.$httpCode);
 		$this->debug('Headers réponse (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
+
+		// EN: Retry once with raw csrf cookie value when server returns HTTP 500.
+		// FR: Refaire 1 tentative avec la valeur brute du cookie csrf si le serveur renvoie HTTP 500.
+		if ($httpCode >= 500 && !empty($this->lastCsrfRaw) && (!isset($postFields['csrf']) || $postFields['csrf'] !== $this->lastCsrfRaw)) {
+			$this->debug('Retry login POST with raw csrf cookie value');
+			$postFields['csrf'] = $this->lastCsrfRaw;
+			usleep($this->requestDelay);
+			curl_setopt($this->ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
+			$response = curl_exec($this->ch);
+			$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
+			$headerSize = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
+			$headers = substr($response, 0, $headerSize);
+			$this->debug('POST login retry (csrf raw) → HTTP '.$httpCode);
+			$this->debug('Headers retry (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
+		}
 
 		// Restaurer les options par défaut
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
@@ -344,6 +363,8 @@ class PowrConnectScraper
 	 */
 	private function extractCsrfFromCookieJar()
 	{
+		$this->lastCsrfRaw = '';
+
 		if (!file_exists($this->cookieFile)) {
 			$this->debug('extractCsrfFromCookieJar : fichier cookie absent');
 			return '';
@@ -364,6 +385,7 @@ class PowrConnectScraper
 				$cookieNames[] = $parts[5];
 				if ($parts[5] === 'csrf') {
 					$rawValue = urldecode($parts[6]);
+					$this->lastCsrfRaw = $rawValue;
 					// Le cookie Remix est signé : base64(json_token).signature
 					// Il faut décoder pour extraire le token brut
 					$token = $this->decodeRemixSignedCookie($rawValue);
