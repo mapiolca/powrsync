@@ -90,7 +90,9 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 
 llxHeader('object_powrconnect@powrsync', $langs->trans('PowrSyncTitle'), '');
 
-print load_fiche_titre($langs->trans('PowrSyncTitle'), '', 'price');
+//print load_fiche_titre($langs->trans('PowrSyncTitle'), '', 'price');
+print_barre_liste($langs->trans('PowrSync'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'fa fa-sun', 0, '', '', $limit);
+
 
 // Vérification de la configuration
 $configOk = ($fkSoc > 0 && !empty($email) && !empty($pwd));
