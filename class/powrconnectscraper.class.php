@@ -267,8 +267,11 @@ class PowrConnectScraper
 
 		$lines = file($this->cookieFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 		foreach ($lines as $line) {
-			if ($line[0] === '#') {
-				continue;
+			// Les cookies HttpOnly sont préfixés par "#HttpOnly_" — il faut les traiter
+			if (strpos($line, '#HttpOnly_') === 0) {
+				$line = substr($line, 10); // Retirer le préfixe "#HttpOnly_"
+			} elseif (isset($line[0]) && $line[0] === '#') {
+				continue; // Ligne de commentaire
 			}
 			$parts = explode("\t", $line);
 			// Format Netscape : domain, flag, path, secure, expiry, name, value
@@ -279,7 +282,21 @@ class PowrConnectScraper
 			}
 		}
 
-		$this->debug('extractCsrfFromCookieJar : cookie csrf non trouvé dans le jar');
+		// Debug : dump les noms de cookies trouvés pour diagnostic
+		$cookieNames = array();
+		foreach ($lines as $line) {
+			$cleanLine = $line;
+			if (strpos($cleanLine, '#HttpOnly_') === 0) {
+				$cleanLine = substr($cleanLine, 10);
+			} elseif (isset($cleanLine[0]) && $cleanLine[0] === '#') {
+				continue;
+			}
+			$parts = explode("\t", $cleanLine);
+			if (count($parts) >= 7) {
+				$cookieNames[] = $parts[5];
+			}
+		}
+		$this->debug('extractCsrfFromCookieJar : cookie csrf non trouvé. Cookies présents : '.implode(', ', $cookieNames));
 		return '';
 	}
 
