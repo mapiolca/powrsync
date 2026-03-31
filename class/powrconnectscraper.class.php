@@ -143,6 +143,19 @@ class PowrConnectScraper
 		// EN: Step 2, discover login form action + hidden fields to avoid hardcoded Remix route.
 		// FR: Étape 2, détecter l'action du formulaire + champs cachés pour éviter une route Remix figée.
 		$formConfig = $this->extractLoginFormConfig($html);
+		$formNotFound = empty($formConfig['action']) && empty($formConfig['hidden']);
+		if ($formNotFound) {
+			// EN: If no login form is present, session may already be authenticated.
+			// FR: Si le formulaire de connexion est absent, la session peut déjà être authentifiée.
+			$this->debug('No login form detected on /connexion, re-check active session before POST login');
+			if ($this->isSessionActive()) {
+				$this->debug('Active session confirmed after /connexion GET, skip login POST');
+				return 1;
+			}
+			// EN: isSessionActive() re-initializes cURL, restore default handle settings for login flow.
+			// FR: isSessionActive() réinitialise cURL, on restaure la config par défaut pour le flux de login.
+			$this->initCurl();
+		}
 
 		$postUrl = $formConfig['action'];
 		if (empty($postUrl)) {
