@@ -16,3 +16,7 @@ PowrSyncAboutContact=Contatto
 PowrSyncAbout=Informazioni su PowrSync
 PowrSyncAboutDocumentationLink=Leggere il file README
 PowrSyncAboutSupportValue=Contattare il proprio integratore per il supporto.
+
+PowrSyncVisibleColumns=Colonne visibili
+PowrSyncRecordsPerPage=Record per pagina
+PowrSyncSyncAllProducts=Sincronizza tutti i prodotti
