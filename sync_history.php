@@ -44,9 +44,14 @@ $offset = $limit * $page;
 
 $search_ref_fourn = trim(GETPOST('search_ref_fourn', 'alphanohtml'));
 $search_status = GETPOST('search_status', 'alpha');
+$selectedfields = GETPOST('selectedfields', 'array');
 if (GETPOST('button_removefilter', 'alpha')) {
 	$search_ref_fourn = '';
 	$search_status = '';
+	$selectedfields = array();
+}
+if (!is_array($selectedfields)) {
+	$selectedfields = array();
 }
 
 $allowedSortFields = array('l.datec', 'l.ref_product', 'l.ref_fourn', 'l.status');
@@ -67,6 +72,39 @@ if ($rescol) {
 $hasEntityColumn = !empty($availableColumns['entity']);
 $hasRefProductColumn = !empty($availableColumns['ref_product']);
 $hasRefFournColumn = !empty($availableColumns['ref_fourn']);
+
+$arrayfields = array(
+	'datec' => array('label' => 'Date', 'checked' => 1),
+	'ref_product' => array('label' => 'ProductRef', 'checked' => 1),
+	'ref_fourn' => array('label' => 'PowrRef', 'checked' => 1),
+	'old_price' => array('label' => 'OldPrice', 'checked' => 1),
+	'new_price' => array('label' => 'NewPrice', 'checked' => 1),
+	'variation' => array('label' => 'Variation', 'checked' => 1),
+	'status' => array('label' => 'Status', 'checked' => 1),
+	'message' => array('label' => 'Message', 'checked' => 1),
+);
+
+if (!$hasRefFournColumn) {
+	$arrayfields['ref_fourn']['checked'] = 0;
+}
+
+if (!empty($selectedfields)) {
+	foreach ($arrayfields as $key => $meta) {
+		$arrayfields[$key]['checked'] = in_array($key, $selectedfields, true) ? 1 : 0;
+	}
+}
+
+$nbVisibleColumns = 0;
+foreach ($arrayfields as $meta) {
+	if (!empty($meta['checked'])) {
+		$nbVisibleColumns++;
+	}
+}
+if ($nbVisibleColumns === 0) {
+	$arrayfields['datec']['checked'] = 1;
+	$arrayfields['status']['checked'] = 1;
+	$nbVisibleColumns = 2;
+}
 
 $sqlselect = "SELECT l.rowid, l.datec, l.fk_product, l.old_price, l.new_price, l.status, l.message";
 $sqlselect .= ", ".($hasRefProductColumn ? "l.ref_product" : "p.ref")." AS ref_product";
@@ -107,6 +145,7 @@ $sql .= " ORDER BY ".$sortFieldMap[$sortfield]." ".$sortorder;
 $sql .= $db->plimit($limit, $offset);
 
 $resql = $db->query($sql);
+$num = $resql ? $db->num_rows($resql) : 0;
 
 $sqlcount = "SELECT COUNT(l.rowid) AS nb".$sqlfrom.$sqlwhere;
 $rescount = $db->query($sqlcount);
@@ -123,52 +162,114 @@ if ($search_ref_fourn !== '') {
 if ($search_status !== '') {
 	$param .= '&search_status='.urlencode($search_status);
 }
+foreach ($arrayfields as $key => $meta) {
+	if (!empty($meta['checked'])) {
+		$param .= '&selectedfields[]='.urlencode($key);
+	}
+}
+
+$limitChoices = array(
+	10 => 10,
+	25 => 25,
+	50 => 50,
+	100 => 100,
+	250 => 250,
+	500 => 500,
+);
+$columnChoices = array();
+foreach ($arrayfields as $key => $meta) {
+	$columnChoices[$key] = $langs->trans($meta['label']);
+}
+
+$morehtmlright = '<div class="nowraponall">';
+$morehtmlright .= '<span class="opacitymedium">'.$langs->trans('PowrSyncVisibleColumns').'</span> ';
+$morehtmlright .= '<select class="flat" multiple="multiple" name="selectedfields[]">';
+foreach ($columnChoices as $columnKey => $columnLabel) {
+	$selected = !empty($arrayfields[$columnKey]['checked']) ? ' selected="selected"' : '';
+	$morehtmlright .= '<option value="'.dol_escape_htmltag($columnKey).'"'.$selected.'>'.dol_escape_htmltag($columnLabel).'</option>';
+}
+$morehtmlright .= '</select>';
+$morehtmlright .= '&nbsp;&nbsp;<span class="opacitymedium">'.$langs->trans('RecordsPerPage').'</span> ';
+$morehtmlright .= $form->selectarray('limit', $limitChoices, $limit, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth75');
+$morehtmlright .= '&nbsp;<button class="button small" type="submit" name="button_applycolumns" value="1">'.$langs->trans('Apply').'</button>';
+$morehtmlright .= '</div>';
 
 llxHeader('', $langs->trans('PowrSyncLog'));
-//print load_fiche_titre($langs->trans('PowrSyncLog'), '', 'title_generic');
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'clock', 0, '', '', $limit);
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, $limit, 'clock', 0, $morehtmlright, '', 0, 1, 1, '');
 
 print '<div class="div-table-responsive">';
 print '<table class="tagtable liste">';
 
 print '<tr class="liste_titre_filter">';
-print '<td></td>';
-print '<td></td>';
-print '<td>';
-if ($hasRefFournColumn) {
-	print '<input type="text" class="flat minwidth100" name="search_ref_fourn" value="'.dol_escape_htmltag($search_ref_fourn).'">';
-} else {
-	print '<span class="opacitymedium">-</span>';
+if (!empty($arrayfields['datec']['checked'])) {
+	print '<td></td>';
 }
-print '</td>';
-print '<td></td>';
-print '<td></td>';
-print '<td></td>';
-print '<td class="center">';
-print $form->selectarray('search_status', array(
-	'' => $langs->trans('All'),
-	PowrConnectScraper::LOG_OK => $langs->trans('PowrLogUpdated'),
-	PowrConnectScraper::LOG_UPTODATE => $langs->trans('PowrLogUpToDate'),
-	PowrConnectScraper::LOG_ERROR => $langs->trans('PowrLogError'),
-), $search_status, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth150');
-print '</td>';
-print '<td class="right">';
-print '<button class="button small" type="submit" name="button_search">'.$langs->trans('Search').'</button> ';
-print '<button class="button button-cancel small" type="submit" name="button_removefilter" value="x">'.$langs->trans('RemoveFilter').'</button>';
-print '</td>';
+if (!empty($arrayfields['ref_product']['checked'])) {
+	print '<td></td>';
+}
+if (!empty($arrayfields['ref_fourn']['checked'])) {
+	print '<td>';
+	if ($hasRefFournColumn) {
+		print '<input type="text" class="flat minwidth100" name="search_ref_fourn" value="'.dol_escape_htmltag($search_ref_fourn).'">';
+	} else {
+		print '<span class="opacitymedium">-</span>';
+	}
+	print '</td>';
+}
+if (!empty($arrayfields['old_price']['checked'])) {
+	print '<td></td>';
+}
+if (!empty($arrayfields['new_price']['checked'])) {
+	print '<td></td>';
+}
+if (!empty($arrayfields['variation']['checked'])) {
+	print '<td></td>';
+}
+if (!empty($arrayfields['status']['checked'])) {
+	print '<td class="center">';
+	print $form->selectarray('search_status', array(
+		'' => $langs->trans('All'),
+		PowrConnectScraper::LOG_OK => $langs->trans('PowrLogUpdated'),
+		PowrConnectScraper::LOG_UPTODATE => $langs->trans('PowrLogUpToDate'),
+		PowrConnectScraper::LOG_ERROR => $langs->trans('PowrLogError'),
+	), $search_status, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth150');
+	print '</td>';
+}
+if (!empty($arrayfields['message']['checked'])) {
+	print '<td class="right">';
+	print '<button class="button small" type="submit" name="button_search">'.$langs->trans('Search').'</button> ';
+	print '<button class="button button-cancel small" type="submit" name="button_removefilter" value="x">'.$langs->trans('RemoveFilter').'</button>';
+	print '</td>';
+}
 print '</tr>';
 
 print '<tr class="liste_titre">';
-print getTitleFieldOfList($langs->trans('Date'), 0, $_SERVER['PHP_SELF'], 'l.datec', '', $param, '', $sortfield, $sortorder);
-print getTitleFieldOfList($langs->trans('ProductRef'), 0, $_SERVER['PHP_SELF'], 'l.ref_product', '', $param, '', $sortfield, $sortorder);
-print getTitleFieldOfList($langs->trans('PowrRef'), 0, $_SERVER['PHP_SELF'], 'l.ref_fourn', '', $param, '', $sortfield, $sortorder);
-print '<td class="right">'.$langs->trans('OldPrice').'</td>';
-print '<td class="right">'.$langs->trans('NewPrice').'</td>';
-print '<td class="right">'.$langs->trans('Variation').'</td>';
-print getTitleFieldOfList($langs->trans('Status'), 0, $_SERVER['PHP_SELF'], 'l.status', '', $param, 'class="center"', $sortfield, $sortorder);
-print '<td>'.$langs->trans('Message').'</td>';
+if (!empty($arrayfields['datec']['checked'])) {
+	print getTitleFieldOfList($langs->trans('Date'), 0, $_SERVER['PHP_SELF'], 'l.datec', '', $param, '', $sortfield, $sortorder);
+}
+if (!empty($arrayfields['ref_product']['checked'])) {
+	print getTitleFieldOfList($langs->trans('ProductRef'), 0, $_SERVER['PHP_SELF'], 'l.ref_product', '', $param, '', $sortfield, $sortorder);
+}
+if (!empty($arrayfields['ref_fourn']['checked'])) {
+	print getTitleFieldOfList($langs->trans('PowrRef'), 0, $_SERVER['PHP_SELF'], 'l.ref_fourn', '', $param, '', $sortfield, $sortorder);
+}
+if (!empty($arrayfields['old_price']['checked'])) {
+	print '<td class="right">'.$langs->trans('OldPrice').'</td>';
+}
+if (!empty($arrayfields['new_price']['checked'])) {
+	print '<td class="right">'.$langs->trans('NewPrice').'</td>';
+}
+if (!empty($arrayfields['variation']['checked'])) {
+	print '<td class="right">'.$langs->trans('Variation').'</td>';
+}
+if (!empty($arrayfields['status']['checked'])) {
+	print getTitleFieldOfList($langs->trans('Status'), 0, $_SERVER['PHP_SELF'], 'l.status', '', $param, 'class="center"', $sortfield, $sortorder);
+}
+if (!empty($arrayfields['message']['checked'])) {
+	print '<td>'.$langs->trans('Message').'</td>';
+}
 print '</tr>';
 
 if ($resql) {
@@ -187,36 +288,52 @@ if ($resql) {
 		}
 
 		print '<tr class="oddeven">';
-		print '<td>'.dol_print_date($db->jdate($obj->datec), 'dayhour').'</td>';
-		print '<td>';
-		if ((int) $obj->fk_product > 0) {
-			print '<a href="'.DOL_URL_ROOT.'/product/card.php?id='.(int) $obj->fk_product.'">'.dol_escape_htmltag($obj->ref_product).'</a>';
-		} else {
-			print dol_escape_htmltag($obj->ref_product);
+		if (!empty($arrayfields['datec']['checked'])) {
+			print '<td>'.dol_print_date($db->jdate($obj->datec), 'dayhour').'</td>';
 		}
-		print '</td>';
-		print '<td>'.dol_escape_htmltag($obj->ref_fourn).'</td>';
-		print '<td class="right">'.($oldPrice !== null ? price($oldPrice) : '-').'</td>';
-		print '<td class="right">'.($newPrice !== null ? price($newPrice) : '-').'</td>';
-		print '<td class="right">';
-		if ($diff !== null && abs($diff) > 0.001) {
-			$arrow = ($diff > 0 ? '▲' : '▼');
-			$style = ($diff > 0 ? 'color: var(--colortextdanger);' : 'color: var(--colortextsuccess);');
-			print '<span style="'.$style.'">'.$arrow.' '.price(abs($diff)).'</span>';
-		} elseif ($diff !== null) {
-			print '=';
-		} else {
-			print '-';
-		}
+		if (!empty($arrayfields['ref_product']['checked'])) {
+			print '<td>';
+			if ((int) $obj->fk_product > 0) {
+				print '<a href="'.DOL_URL_ROOT.'/product/card.php?id='.(int) $obj->fk_product.'">'.dol_escape_htmltag($obj->ref_product).'</a>';
+			} else {
+				print dol_escape_htmltag($obj->ref_product);
+			}
 			print '</td>';
-			print '<td class="center">'.$badge.'</td>';
-			print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
-			print '</tr>';
 		}
-		$db->free($resql);
-	} else {
-		print '<tr class="oddeven"><td colspan="8"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
+		if (!empty($arrayfields['ref_fourn']['checked'])) {
+			print '<td>'.dol_escape_htmltag($obj->ref_fourn).'</td>';
+		}
+		if (!empty($arrayfields['old_price']['checked'])) {
+			print '<td class="right">'.($oldPrice !== null ? price($oldPrice) : '-').'</td>';
+		}
+		if (!empty($arrayfields['new_price']['checked'])) {
+			print '<td class="right">'.($newPrice !== null ? price($newPrice) : '-').'</td>';
+		}
+		if (!empty($arrayfields['variation']['checked'])) {
+			print '<td class="right">';
+			if ($diff !== null && abs($diff) > 0.001) {
+				$arrow = ($diff > 0 ? '▲' : '▼');
+				$style = ($diff > 0 ? 'color: var(--colortextdanger);' : 'color: var(--colortextsuccess);');
+				print '<span style="'.$style.'">'.$arrow.' '.price(abs($diff)).'</span>';
+			} elseif ($diff !== null) {
+				print '=';
+			} else {
+				print '-';
+			}
+			print '</td>';
+		}
+		if (!empty($arrayfields['status']['checked'])) {
+			print '<td class="center">'.$badge.'</td>';
+		}
+		if (!empty($arrayfields['message']['checked'])) {
+			print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
+		}
+		print '</tr>';
 	}
+	$db->free($resql);
+} else {
+	print '<tr class="oddeven"><td colspan="'.$nbVisibleColumns.'"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
+}
 
 print '</table>';
 print '</div>';
