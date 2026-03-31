@@ -54,17 +54,69 @@ class PowrConnectScraper
 	}
 
 	/**
-	 * Authentification — POST les identifiants sur /connexion
+	 * Vérifie si une session active existe déjà via le cookie jar.
+	 * Tente de charger une page et vérifie qu'on n'est pas redirigé vers /connexion.
+	 */
+	public function isSessionActive()
+	{
+		$this->debug('isSessionActive() — vérification du cookie jar : '.$this->cookieFile);
+
+		if (!file_exists($this->cookieFile)) {
+			$this->debug('Pas de fichier cookie — session inactive');
+			return false;
+		}
+
+		// Vérifier que le cookie __session existe et n'est pas vide/expiré
+		$cookies = file_get_contents($this->cookieFile);
+		if (strpos($cookies, '__session') === false) {
+			$this->debug('Cookie __session absent du fichier — session inactive');
+			return false;
+		}
+		$this->debug('Cookie __session trouvé, test GET sur le site...');
+
+		$this->initCurl();
+		// Désactiver le suivi de redirection pour détecter un 302 vers /connexion
+		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($this->ch, CURLOPT_URL, $this->baseUrl.'/account/profile');
+		curl_setopt($this->ch, CURLOPT_HTTPGET, true);
+
+		curl_exec($this->ch);
+		$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
+		$this->debug('GET /account/profile → HTTP '.$httpCode);
+
+		// Restaurer le suivi de redirection
+		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
+
+		// 200 = connecté, 302/301 = redirigé vers login
+		if ($httpCode === 200) {
+			$this->loggedIn = true;
+			$this->debug('Session active — pas besoin de se reconnecter');
+			return true;
+		}
+
+		$this->debug('Session expirée ou invalide (HTTP '.$httpCode.')');
+		return false;
+	}
+
+	/**
+	 * Authentification via l'endpoint Remix de /connexion
+	 * Le CSRF est géré par cookie (posé par le GET, renvoyé automatiquement par le POST).
 	 * Retourne 1 si succès, -1 si échec
 	 */
 	public function login($email, $password)
 	{
 		$this->debug('login() — début, user='.$email);
+
+		// Vérifie si on est déjà connecté via les cookies existants
+		if ($this->isSessionActive()) {
+			return 1;
+		}
+
 		$this->initCurl();
 
-		// Étape 1 : charger la page connexion pour récupérer le token CSRF
+		// Étape 1 : GET /connexion pour récupérer le cookie csrf + __session initiale
 		$loginUrl = $this->baseUrl.'/connexion';
-		$this->debug('GET '.$loginUrl);
+		$this->debug('GET '.$loginUrl.' (pour cookies csrf + __session)');
 		curl_setopt($this->ch, CURLOPT_URL, $loginUrl);
 		curl_setopt($this->ch, CURLOPT_HTTPGET, true);
 		$html = curl_exec($this->ch);
@@ -76,27 +128,43 @@ class PowrConnectScraper
 		}
 		$this->debug('GET /connexion OK, HTML length='.strlen($html).' bytes');
 
-		$csrfToken = $this->extractCsrfToken($html);
-		$this->debug('CSRF token extrait : '.($csrfToken ? substr($csrfToken, 0, 20).'…' : '(vide — non trouvé)'));
+		// Log des cookies reçus
+		if (file_exists($this->cookieFile)) {
+			$cookieContent = file_get_contents($this->cookieFile);
+			$hasCsrf = strpos($cookieContent, 'csrf') !== false ? 'oui' : 'non';
+			$hasSession = strpos($cookieContent, '__session') !== false ? 'oui' : 'non';
+			$this->debug('Cookies après GET : csrf='.$hasCsrf.', __session='.$hasSession);
+		}
 
-		// Étape 2 : soumettre le formulaire
+		// Étape 2 : POST vers l'endpoint Remix data
+		// URL exacte : /connexion?redirect=%2F&_data=routes%2Fconnexion
 		usleep($this->requestDelay);
-		$this->debug('POST /connexion avec username='.$email.', csrf='.($csrfToken ? 'oui' : 'non'));
+		$postUrl = $this->baseUrl.'/connexion?redirect=%2F&_data=routes%2Fconnexion';
+		$this->debug('POST '.$postUrl.' avec username='.$email);
+
+		// Ne pas suivre les redirections pour capturer la réponse 204
+		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($this->ch, CURLOPT_HEADER, true);
 		curl_setopt_array($this->ch, array(
-			CURLOPT_URL        => $loginUrl,
+			CURLOPT_URL        => $postUrl,
 			CURLOPT_POST       => true,
 			CURLOPT_POSTFIELDS => http_build_query(array(
-				'username'  => $email,
-				'password'  => $password,
-				'csrf'      => $csrfToken,
-				'_action'   => 'login',
+				'username' => $email,
+				'password' => $password,
 			)),
 		));
 
-		$postHtml = curl_exec($this->ch);
+		$response = curl_exec($this->ch);
 		$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
-		$finalUrl = curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL);
-		$this->debug('POST /connexion → HTTP '.$httpCode.' — URL finale : '.$finalUrl);
+		$headerSize = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
+		$headers = substr($response, 0, $headerSize);
+
+		$this->debug('POST login → HTTP '.$httpCode);
+		$this->debug('Headers réponse (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
+
+		// Restaurer les options par défaut
+		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
+		curl_setopt($this->ch, CURLOPT_HEADER, false);
 
 		if (curl_errno($this->ch)) {
 			$this->error = 'Erreur cURL login : '.curl_error($this->ch);
@@ -104,20 +172,25 @@ class PowrConnectScraper
 			return -1;
 		}
 
-		// Login réussi = redirigé hors de /connexion, ou HTTP 302/303
-		if (strpos($finalUrl, '/connexion') !== false && $httpCode >= 400) {
-			$this->error = 'Identifiants incorrects ou structure de login modifiée (HTTP '.$httpCode.')';
-			$this->debug('Échec login : toujours sur /connexion avec HTTP '.$httpCode);
-			// Extrait un éventuel message d'erreur HTML pour aider au debug
-			if (preg_match('/<[^>]*(?:alert|error|danger)[^>]*>([^<]{5,200})</i', $postHtml, $errMatch)) {
-				$this->debug('Message erreur page : '.trim($errMatch[1]));
+		// Remix renvoie 204 No Content avec x-remix-redirect en cas de succès
+		if ($httpCode === 204 || ($httpCode >= 200 && $httpCode < 400)) {
+			// Vérifier que le cookie __session a été mis à jour avec des données réelles
+			if (file_exists($this->cookieFile)) {
+				$cookieContent = file_get_contents($this->cookieFile);
+				$hasAuth = strpos($cookieContent, 'auth_token_sso') !== false;
+				$this->debug('Cookie auth_token_sso après login : '.($hasAuth ? 'oui' : 'non'));
+				if ($hasAuth || strpos($headers, 'x-remix-redirect') !== false) {
+					$this->loggedIn = true;
+					$this->debug('Login réussi — session active');
+					return 1;
+				}
 			}
-			return -1;
 		}
 
-		$this->loggedIn = true;
-		$this->debug('Login réussi — session active');
-		return 1;
+		// Échec
+		$this->error = 'Échec login HTTP '.$httpCode.' — vérifier les identifiants';
+		$this->debug('Échec login : HTTP '.$httpCode);
+		return -1;
 	}
 
 	/**
@@ -173,26 +246,6 @@ class PowrConnectScraper
 		}
 
 		return $this->parsePrice($html, $powrRef);
-	}
-
-	/**
-	 * Extrait le token CSRF de la page connexion
-	 * Cherche un input hidden name="csrf"
-	 */
-	private function extractCsrfToken($html)
-	{
-		// Format : <input type="hidden" name="csrf" value="TOKEN">
-		if (preg_match('/name=["\']csrf["\'][^>]+value=["\']([^"\']+)["\']/', $html, $m)) {
-			$this->debug('CSRF trouvé (format name→value)');
-			return $m[1];
-		}
-		// Format inversé : value="TOKEN" ... name="csrf"
-		if (preg_match('/value=["\']([^"\']+)["\'][^>]+name=["\']csrf["\']/', $html, $m)) {
-			$this->debug('CSRF trouvé (format value→name)');
-			return $m[1];
-		}
-		$this->debug('CSRF non trouvé dans le HTML — envoi sans token');
-		return '';
 	}
 
 	/**
