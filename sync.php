@@ -377,8 +377,24 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 	}
 
 	$productFournisseur = new ProductFournisseur($db);
+	$productId = (int) $productRow['fk_product'];
+	$qty = max(1, (float) $productRow['quantity']);
+
+	$fetchResult = $productFournisseur->fetch_product_fournisseur_price(
+		$productId,
+		(int) $fkSoc,
+		$powrRef,
+		$qty
+	);
+	if ($fetchResult < 0) {
+		$productFournisseur->fk_product = $productId;
+		$productFournisseur->fourn_id = (int) $fkSoc;
+		$productFournisseur->ref_fourn = $powrRef;
+		$productFournisseur->fourn_qty = $qty;
+	}
+
 	$res = $productFournisseur->update_buyprice(
-		max(1, (float) $productRow['quantity']),
+		$qty,
 		(float) $newPrice,
 		$user,
 		'HT',
