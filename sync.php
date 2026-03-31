@@ -13,7 +13,7 @@ $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
 if (!isModEnabled('powrsync')) {
 	accessforbidden('Module PowrSync non activé');
 }
-if (!$user->hasRight('powrsync', 'sync', 'read')) {
+if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 	accessforbidden();
 }
 
@@ -30,7 +30,7 @@ $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
 // ACTIONS
 // =========================================================================
 
-if ($user->hasRight('powrsync', 'sync', 'write')) {
+if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
 		$ret = $scraper->syncAllPrices();
@@ -112,7 +112,7 @@ if ($action == 'syncall') {
 }
 
 // Bouton de sync global
-if ($user->hasRight('powrsync', 'sync', 'write') && $action != 'syncall') {
+if ($user->hasRight('powrsync', 'synclog', 'write') && $action != 'syncall') {
 	print '<div class="tabsAction">';
 	print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=syncall&token='.newToken().'">';
 	print img_picto('', 'refresh', 'class="pictofixedwidth"');
@@ -234,7 +234,7 @@ if (empty($products)) {
 
 		// Bouton sync individuel
 		print '<td class="center">';
-		if ($user->hasRight('powrsync', 'sync', 'write')) {
+		if ($user->hasRight('powrsync', 'synclog', 'write')) {
 			print '<a class="reposition butActionSmall" href="'.$_SERVER['PHP_SELF'].'?action=syncone&productid='.$pid.'&token='.newToken().'">';
 			print img_picto($langs->trans('Sync'), 'refresh');
 			print '</a>';
