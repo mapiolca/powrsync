@@ -96,7 +96,7 @@ class modPowrSync extends DolibarrModules
 			'fk_menu'  => 'fk_mainmenu=products',
 			'type'     => 'left',
 			'titre'    => 'POwR Connect Sync',
-			'prefix' => img_picto('', 'powrconnect@powrsync', 'class="pictofixedwidth valignmiddle"'),
+			'prefix' => img_picto('', 'object_powrconnect@powrsync', 'class="pictofixedwidth valignmiddle"'),
 			'mainmenu' => 'products',
 			'leftmenu' => 'powrsync',
 			'url'      => '/powrsync/sync.php',
