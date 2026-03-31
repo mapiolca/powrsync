@@ -206,6 +206,8 @@ class PowrSync extends CommonObject
 			." WHERE pfp.fk_soc = ".((int) $this->supplierId)
 			." AND pfp.entity IN (".getEntity('product').")"
 			." AND pfp.status = 1"
+			." AND extra.supplier_url IS NOT NULL"
+			." AND TRIM(extra.supplier_url) <> ''"
 			." ORDER BY pfp.fk_product ASC";
 
 		$res = $this->db->query($sql);

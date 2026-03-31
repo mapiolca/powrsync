@@ -56,7 +56,7 @@ if ($search_ref_fourn !== '') {
 if ($user->hasRight('powrsync', 'synclog', 'write')) {
 	// --- Synchronisation de TOUS les produits ---
 	if ($action == 'syncall' && $confirm == 'yes') {
-		$productsToSync = getProductsWithPowrRef($db, $fkSoc);
+		$productsToSync = getProductsWithPowrRef($db, $fkSoc, 'p.ref', 'ASC', '', '', true);
 		$updatedCount = 0;
 		$errorMessages = array();
 
@@ -319,9 +319,10 @@ $db->close();
  * @param	string	$sortorder
  * @param	string	$searchRefProduct
  * @param	string	$searchRefFourn
+ * @param	bool	$requireSupplierUrl
  * @return	array|false
  */
-function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC', $searchRefProduct = '', $searchRefFourn = '')
+function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC', $searchRefProduct = '', $searchRefFourn = '', $requireSupplierUrl = false)
 {
 	$sortFieldMap = array(
 		'p.ref' => 'p.ref',
@@ -348,6 +349,10 @@ function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
+	if ($requireSupplierUrl) {
+		$sql .= " AND ef.supplier_url IS NOT NULL";
+		$sql .= " AND TRIM(ef.supplier_url) <> ''";
+	}
 	if ($searchRefProduct !== '') {
 		$sql .= " AND p.ref LIKE '%".$db->escape($searchRefProduct)."%'";
 	}
