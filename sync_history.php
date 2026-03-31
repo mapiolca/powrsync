@@ -189,7 +189,7 @@ foreach ($columnChoices as $columnKey => $columnLabel) {
 	$morehtmlright .= '<option value="'.dol_escape_htmltag($columnKey).'"'.$selected.'>'.dol_escape_htmltag($columnLabel).'</option>';
 }
 $morehtmlright .= '</select>';
-$morehtmlright .= '&nbsp;&nbsp;<span class="opacitymedium">'.$langs->trans('RecordsPerPage').'</span> ';
+$morehtmlright .= '&nbsp;&nbsp;<span class="opacitymedium">'.$langs->trans('PowrSyncRecordsPerPage').'</span> ';
 $morehtmlright .= $form->selectarray('limit', $limitChoices, $limit, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth75');
 $morehtmlright .= '&nbsp;<button class="button small" type="submit" name="button_applycolumns" value="1">'.$langs->trans('Apply').'</button>';
 $morehtmlright .= '</div>';
@@ -197,7 +197,7 @@ $morehtmlright .= '</div>';
 llxHeader('', $langs->trans('PowrSyncLog'));
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, $limit, 'clock', 0, $morehtmlright, '', 0, 1, 1, '');
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, 'clock', 0, $morehtmlright, '', $limit);
 
 print '<div class="div-table-responsive">';
 print '<table class="tagtable liste">';
