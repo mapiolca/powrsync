@@ -21,7 +21,8 @@ $action     = GETPOST('action', 'aZ09');
 $productId  = GETPOST('productid', 'int');
 $confirm    = GETPOST('confirm', 'alpha');
 
-$scraper = new PowrConnectScraper($db);
+$tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
+$scraper = new PowrConnectScraper($tempDir);
 $fkSoc   = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 $email   = getDolGlobalString('POWRSYNC_LOGIN');
 $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
