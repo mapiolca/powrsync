@@ -128,13 +128,16 @@ class PowrConnectScraper
 		}
 		$this->debug('GET /connexion OK, HTML length='.strlen($html).' bytes');
 
-		// Log des cookies reçus
+		// Extraire la valeur du cookie csrf depuis le cookie jar
+		// Le CSRF utilise un double-submit pattern : la valeur doit être dans le cookie ET dans le body
+		$csrfValue = $this->extractCsrfFromCookieJar();
 		if (file_exists($this->cookieFile)) {
 			$cookieContent = file_get_contents($this->cookieFile);
 			$hasCsrf = strpos($cookieContent, 'csrf') !== false ? 'oui' : 'non';
 			$hasSession = strpos($cookieContent, '__session') !== false ? 'oui' : 'non';
 			$this->debug('Cookies après GET : csrf='.$hasCsrf.', __session='.$hasSession);
 		}
+		$this->debug('CSRF cookie value : '.($csrfValue ? substr($csrfValue, 0, 30).'…' : '(non trouvé)'));
 
 		// Étape 2 : POST vers l'endpoint Remix data
 		// URL exacte : /connexion?redirect=%2F&_data=routes%2Fconnexion
@@ -149,8 +152,11 @@ class PowrConnectScraper
 			CURLOPT_URL        => $postUrl,
 			CURLOPT_POST       => true,
 			CURLOPT_POSTFIELDS => http_build_query(array(
-				'username' => $email,
-				'password' => $password,
+				'csrf'          => $csrfValue,
+				'_action'       => 'login',
+				'username'      => $email,
+				'password'      => $password,
+				'stayConnected' => 'on',
 			)),
 		));
 
@@ -246,6 +252,35 @@ class PowrConnectScraper
 		}
 
 		return $this->parsePrice($html, $powrRef);
+	}
+
+	/**
+	 * Extrait la valeur du cookie csrf depuis le fichier cookie jar de cURL.
+	 * Le cookie est au format Netscape : domaine \t ... \t nom \t valeur
+	 */
+	private function extractCsrfFromCookieJar()
+	{
+		if (!file_exists($this->cookieFile)) {
+			$this->debug('extractCsrfFromCookieJar : fichier cookie absent');
+			return '';
+		}
+
+		$lines = file($this->cookieFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+		foreach ($lines as $line) {
+			if ($line[0] === '#') {
+				continue;
+			}
+			$parts = explode("\t", $line);
+			// Format Netscape : domain, flag, path, secure, expiry, name, value
+			if (count($parts) >= 7 && $parts[5] === 'csrf') {
+				$value = urldecode($parts[6]);
+				$this->debug('extractCsrfFromCookieJar : trouvé, longueur='.strlen($value));
+				return $value;
+			}
+		}
+
+		$this->debug('extractCsrfFromCookieJar : cookie csrf non trouvé dans le jar');
+		return '';
 	}
 
 	/**
