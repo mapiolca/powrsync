@@ -30,9 +30,11 @@ class modPowrSync extends DolibarrModules
 			"récupère les prix actuels par scraping authentifié et met à jour les prix d'achat si nécessaire.";
 		$this->editor_name    = 'Les Métiers du Bâtiment';
 		$this->editor_url     = 'https://lesmetiersdubatiment.fr';
+		$this->editor_squarred_logo = 'lesmetiersdubatiment.png@powrsync';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@powrsync'
+
 		$this->version        = '1.0.0';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
-		$this->picto          = 'object_powrsync@powrsync';
+		$this->picto          = 'object.png@powrsync';
 
 		$this->dirs = array("/powrsync/temp");
 
