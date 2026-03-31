@@ -125,7 +125,7 @@ if ($search_status !== '') {
 }
 
 llxHeader('', $langs->trans('PowrSyncLog'));
-print load_fiche_titre($langs->trans('PowrSyncLog'), '', 'title_generic');
+//print load_fiche_titre($langs->trans('PowrSyncLog'), '', 'title_generic');
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'clock', 0, '', '', $limit);
