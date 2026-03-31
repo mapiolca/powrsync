@@ -6,7 +6,7 @@
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
-require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
+require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
 
 $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
