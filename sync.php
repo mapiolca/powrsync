@@ -4,6 +4,7 @@
  */
 
 require '../../main.inc.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
@@ -23,12 +24,30 @@ if (!$user->hasRight('powrsync', 'synclog', 'read')) {
 $action            = GETPOST('action', 'aZ09');
 $supplierPriceLineId = GETPOST('lineid', 'int');
 $confirm           = GETPOST('confirm', 'alpha');
+$sortfield = GETPOST('sortfield', 'aZ09comma') ? GETPOST('sortfield', 'aZ09comma') : 'p.ref';
+$sortorder = GETPOST('sortorder', 'aZ09comma') ? GETPOST('sortorder', 'aZ09comma') : 'ASC';
+$search_ref_product = trim(GETPOST('search_ref_product', 'alphanohtml'));
+$search_ref_fourn = trim(GETPOST('search_ref_fourn', 'alphanohtml'));
 
 $tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
 $scraper = new PowrConnectScraper($tempDir);
 $fkSoc   = getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
 $email   = getDolGlobalString('POWRSYNC_LOGIN');
 $pwd     = getDolGlobalString('POWRSYNC_PASSWORD');
+$form = new Form($db);
+
+$allowedSortFields = array('p.ref', 'p.label', 'pfp.ref_fourn', 'pfp.unitprice', 'lastlog.new_price', 'lastlog.datec', 'lastlog.status');
+if (!in_array($sortfield, $allowedSortFields, true)) {
+	$sortfield = 'p.ref';
+}
+$sortorder = (strtoupper($sortorder) === 'DESC') ? 'DESC' : 'ASC';
+$param = '';
+if ($search_ref_product !== '') {
+	$param .= '&search_ref_product='.urlencode($search_ref_product);
+}
+if ($search_ref_fourn !== '') {
+	$param .= '&search_ref_fourn='.urlencode($search_ref_fourn);
+}
 
 // =========================================================================
 // ACTIONS
@@ -88,6 +107,10 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 // VUE
 // =========================================================================
 
+$page = 0;
+$limit = 0;
+$total = 0;
+
 llxHeader('', $langs->trans('PowrSyncTitle'));
 
 //print load_fiche_titre($langs->trans('PowrSyncTitle'), '', 'price');
@@ -128,7 +151,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write') && $action != 'syncall') {
 }
 
 // Liste des produits avec ref POwR Connect
-$products = getProductsWithPowrRef($db, $fkSoc);
+$products = getProductsWithPowrRef($db, $fkSoc, $sortfield, $sortorder, $search_ref_product, $search_ref_fourn);
 
 if ($products === false) {
 	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($db->lasterror()).'</div>';
@@ -137,28 +160,44 @@ if ($products === false) {
 	exit;
 }
 
-// Récupérer les derniers logs pour chaque produit
-$lastLogs = getLastLogsByProduct($db, $fkSoc);
-
+print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
 print '<div class="div-table-responsive">';
-print '<table class="noborder centpercent">';
+print '<table class="tagtable nobottomiftotal noborder liste">';
+print '<tr class="liste_titre_filter">';
+print '<td class="liste_titre center maxwidthsearch">'.$form->showFilterButtons('left').'</td>';
+print '<td><input type="text" class="flat minwidth100" name="search_ref_product" value="'.dol_escape_htmltag($search_ref_product).'"></td>';
+print '<td></td>';
+print '<td><input type="text" class="flat minwidth100" name="search_ref_fourn" value="'.dol_escape_htmltag($search_ref_fourn).'"></td>';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '</tr>';
 print '<tr class="liste_titre">';
-print '<td>'.$langs->trans('ProductRef').'</td>';
-print '<td>'.$langs->trans('ProductLabel').'</td>';
-print '<td>'.$langs->trans('PowrRef').'</td>';
+print '<td></td>';
+print getTitleFieldOfList($langs->trans('ProductRef'), 0, $_SERVER['PHP_SELF'], 'p.ref', '', $param, '', $sortfield, $sortorder);
+print getTitleFieldOfList($langs->trans('ProductLabel'), 0, $_SERVER['PHP_SELF'], 'p.label', '', $param, '', $sortfield, $sortorder);
+print getTitleFieldOfList($langs->trans('PowrRef'), 0, $_SERVER['PHP_SELF'], 'pfp.ref_fourn', '', $param, '', $sortfield, $sortorder);
 print '<td class="right">'.$langs->trans('CurrentBuyPrice').'</td>';
-print '<td class="right">'.$langs->trans('LastSyncPrice').'</td>';
-print '<td class="center">'.$langs->trans('LastSync').'</td>';
-print '<td class="center">'.$langs->trans('Status').'</td>';
+print getTitleFieldOfList($langs->trans('LastSyncPrice'), 0, $_SERVER['PHP_SELF'], 'lastlog.new_price', '', $param, 'class="right"', $sortfield, $sortorder);
+print getTitleFieldOfList($langs->trans('LastSync'), 0, $_SERVER['PHP_SELF'], 'lastlog.datec', '', $param, 'class="center"', $sortfield, $sortorder);
+print getTitleFieldOfList($langs->trans('Status'), 0, $_SERVER['PHP_SELF'], 'lastlog.status', '', $param, 'class="center"', $sortfield, $sortorder);
 print '<td class="center">'.$langs->trans('Action').'</td>';
 print '</tr>';
 
 if (empty($products)) {
-	print '<tr><td colspan="8" class="center opacitymedium">'.$langs->trans('PowrSyncNoProducts').'</td></tr>';
+	print '<tr><td colspan="9" class="center opacitymedium">'.$langs->trans('PowrSyncNoProducts').'</td></tr>';
 } else {
 	foreach ($products as $prod) {
 		$pid       = (int) $prod['fk_product'];
-		$log       = isset($lastLogs[$pid]) ? $lastLogs[$pid] : null;
+		$log       = (!empty($prod['last_datec']) || $prod['last_status'] !== null) ? array(
+			'datec' => $prod['last_datec'],
+			'old_price' => $prod['last_old_price'],
+			'new_price' => $prod['last_new_price'],
+			'status' => $prod['last_status'],
+			'message' => $prod['last_message'],
+		) : null;
 		$statusClass = '';
 		$statusLabel = '';
 		$statusIcon  = '';
@@ -180,6 +219,7 @@ if (empty($products)) {
 		}
 
 		print '<tr class="oddeven">';
+		print '<td></td>';
 
 		// Ref produit (lien fiche)
 		print '<td>';
@@ -257,6 +297,7 @@ if (empty($products)) {
 
 print '</table>';
 print '</div>';
+print '</form>';
 
 print '<br><p class="opacitymedium center">';
 print $langs->trans('PowrSyncProductCount', count($products));
@@ -274,18 +315,46 @@ $db->close();
  *
  * @param	DoliDB	$db
  * @param	int		$fkSoc
+ * @param	string	$sortfield
+ * @param	string	$sortorder
+ * @param	string	$searchRefProduct
+ * @param	string	$searchRefFourn
  * @return	array|false
  */
-function getProductsWithPowrRef($db, $fkSoc)
+function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC', $searchRefProduct = '', $searchRefFourn = '')
 {
+	$sortFieldMap = array(
+		'p.ref' => 'p.ref',
+		'p.label' => 'p.label',
+		'pfp.ref_fourn' => 'pfp.ref_fourn',
+		'pfp.unitprice' => 'pfp.unitprice',
+		'lastlog.new_price' => 'lastlog.new_price',
+		'lastlog.datec' => 'lastlog.datec',
+		'lastlog.status' => 'lastlog.status',
+	);
+	$sortfield = !empty($sortFieldMap[$sortfield]) ? $sortFieldMap[$sortfield] : 'p.ref';
+	$sortorder = (strtoupper($sortorder) === 'DESC') ? 'DESC' : 'ASC';
+
 	$sql = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
+	$sql .= ", lastlog.datec AS last_datec, lastlog.old_price AS last_old_price, lastlog.new_price AS last_new_price, lastlog.status AS last_status, lastlog.message AS last_message";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
 	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
+	$sql .= " LEFT JOIN (";
+	$sql .= "   SELECT l1.fk_product, l1.datec, l1.old_price, l1.new_price, l1.status, l1.message";
+	$sql .= "   FROM ".MAIN_DB_PREFIX."powrsync_log AS l1";
+	$sql .= "   INNER JOIN (SELECT fk_product, MAX(datec) AS maxdate FROM ".MAIN_DB_PREFIX."powrsync_log GROUP BY fk_product) AS l2 ON l2.fk_product = l1.fk_product AND l2.maxdate = l1.datec";
+	$sql .= " ) AS lastlog ON lastlog.fk_product = pfp.fk_product";
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
-	$sql .= " ORDER BY p.ref ASC";
+	if ($searchRefProduct !== '') {
+		$sql .= " AND p.ref LIKE '%".$db->escape($searchRefProduct)."%'";
+	}
+	if ($searchRefFourn !== '') {
+		$sql .= " AND pfp.ref_fourn LIKE '%".$db->escape($searchRefFourn)."%'";
+	}
+	$sql .= " ORDER BY ".$sortfield." ".$sortorder.", pfp.rowid ASC";
 
 	$resql = $db->query($sql);
 	if (!$resql) {
@@ -303,6 +372,11 @@ function getProductsWithPowrRef($db, $fkSoc)
 			'unitprice' => (float) $obj->unitprice,
 			'quantity' => (float) $obj->quantity,
 			'supplier_url' => $obj->supplier_url,
+			'last_datec' => $obj->last_datec,
+			'last_old_price' => ($obj->last_old_price !== null ? (float) $obj->last_old_price : null),
+			'last_new_price' => ($obj->last_new_price !== null ? (float) $obj->last_new_price : null),
+			'last_status' => ($obj->last_status !== null ? (int) $obj->last_status : null),
+			'last_message' => $obj->last_message,
 		);
 	}
 
