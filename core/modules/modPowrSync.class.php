@@ -34,7 +34,7 @@ class modPowrSync extends DolibarrModules
 
 		$this->version        = '1.0.0';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
-		$this->picto          = 'object@powrsync';
+		$this->picto          = 'powrconnect@powrsync';
 
 		$this->dirs = array("/powrsync/temp");
 
