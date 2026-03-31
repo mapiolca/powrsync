@@ -88,7 +88,7 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 // VUE
 // =========================================================================
 
-llxHeader('', $langs->trans('PowrSyncTitle'), '');
+llxHeader('object_powrconnect@powrsync', $langs->trans('PowrSyncTitle'), '');
 
 print load_fiche_titre($langs->trans('PowrSyncTitle'), '', 'price');
 
