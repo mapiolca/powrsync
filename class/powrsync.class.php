@@ -2,8 +2,6 @@
 /* Copyright (C) 2024 Votre Société — Licence GNU GPL v3 */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
-require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.php';
 
 /**
@@ -243,21 +241,23 @@ class PowrSync extends CommonObject
 	 */
 	private function updateSupplierPrice($productId, $supplierId, $refFourn, $qty, $price, $priceLineId = 0)
 	{
+		global $langs;
+
 		require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
 
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
-		$vatTx = (float) price2num(getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE'));
-
-		if ($vatTx <= 0) {
-			$thirdparty = new Societe($this->db);
-			if ($thirdparty->fetch((int) $supplierId) > 0) {
-				$vatTx = (float) price2num(get_default_tva($GLOBALS['mysoc'], $thirdparty));
-				if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
-					$vatTx = 20.0;
-				}
+		$configuredVatRaw = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
+		if ($configuredVatRaw === '') {
+			if (is_object($langs)) {
+				$langs->load('powrsync@powrsync');
+				$this->error = $langs->trans('PowrSyncDefaultVatRateRequired');
+			} else {
+				$this->error = 'POWRSYNC_DEFAULT_VAT_RATE is required';
 			}
+			return -1;
 		}
+		$vatTx = (float) price2num($configuredVatRaw);
 
 		// EN: Always initialize object context ids before update to prevent insert with fk_product/fk_soc at 0.
 		// FR: Toujours initialiser les IDs de contexte de l'objet avant update pour éviter un insert avec fk_product/fk_soc à 0.

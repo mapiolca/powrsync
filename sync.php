@@ -7,7 +7,6 @@ require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
@@ -473,8 +472,6 @@ function getLastLogsByProduct($db, $fkSoc)
  */
 function getSupplierDefaultVatRate($db, $supplierId)
 {
-	global $mysoc;
-
 	static $vatCache = array();
 
 	$supplierId = (int) $supplierId;
@@ -486,25 +483,12 @@ function getSupplierDefaultVatRate($db, $supplierId)
 		return (float) $vatCache[$supplierId];
 	}
 
-	$configuredVat = (float) price2num(getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE'));
-	if ($configuredVat > 0) {
-		$vatCache[$supplierId] = $configuredVat;
-		return $configuredVat;
+	$configuredVatRaw = getDolGlobalString('POWRSYNC_DEFAULT_VAT_RATE');
+	if ($configuredVatRaw === '') {
+		return null;
 	}
 
-	$thirdparty = new Societe($db);
-	$fetchResult = $thirdparty->fetch($supplierId);
-	if ($fetchResult <= 0) {
-		$vatCache[$supplierId] = 0.0;
-		return 0.0;
-	}
-
-	$vatTx = get_default_tva($mysoc, $thirdparty);
-	if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
-		$vatTx = 20.0;
-	}
-
-	$vatCache[$supplierId] = (float) price2num($vatTx);
+	$vatCache[$supplierId] = (float) price2num($configuredVatRaw);
 
 	return (float) $vatCache[$supplierId];
 }
@@ -523,6 +507,8 @@ function getSupplierDefaultVatRate($db, $supplierId)
  */
 function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, $login, $password)
 {
+	global $langs;
+
 	$powrRef = $productRow['ref_fourn'];
 	$url = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
 	$productId = (int) $productRow['fk_product'];
@@ -549,6 +535,11 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 	$priceLineId = !empty($productRow['pfp_rowid']) ? (int) $productRow['pfp_rowid'] : 0;
 	$qty = max(1, (float) $productRow['quantity']);
 	$vatTx = getSupplierDefaultVatRate($db, $fkSoc);
+	if ($vatTx === null) {
+		$scraper->error = $langs->trans('PowrSyncDefaultVatRateRequired');
+		insertPowrSyncLog($db, $productRow, $user, PowrConnectScraper::LOG_ERROR, $currentPrice, null, $scraper->error);
+		return -1;
+	}
 
 	// EN: Always set context ids before update to avoid fallback delete/insert with fk_product=0/fk_soc=0.
 	// FR: Toujours renseigner les IDs de contexte avant update pour éviter le fallback delete/insert avec fk_product=0/fk_soc=0.

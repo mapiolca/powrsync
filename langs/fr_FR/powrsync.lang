@@ -13,7 +13,8 @@ PowrSyncAdvanced=Paramètres avancés
 PowrSyncDelay=Délai entre requêtes
 PowrSyncDelayHelp=Temps d'attente entre chaque produit (500ms minimum pour ne pas surcharger le site)
 PowrSyncDefaultVatRate=Taux TVA par défaut
-PowrSyncDefaultVatRateHelp=Taux de TVA HT appliqué lors de la mise à jour du prix fournisseur. Laisser 0 pour utiliser le taux détecté automatiquement.
+PowrSyncDefaultVatRateHelp=Taux de TVA HT appliqué lors de chaque mise à jour de prix d'achat fournisseur.
+PowrSyncDefaultVatRateRequired=Le paramètre "Taux TVA par défaut" est obligatoire. Veuillez le renseigner dans la configuration PowrSync.
 PowrSyncConfigOk=Connecté avec le compte %s
 
 PowrSyncTestConnection=Test de connexion

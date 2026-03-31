@@ -3,7 +3,8 @@
 PowrSyncSupplierUrlLabel=URL des Lieferantenprodukts
 PowrSyncSupplierUrlTooltip=Geben Sie die URL zur Produktseite im Lieferanten-Shop ein
 PowrSyncDefaultVatRate=Standard-Mehrwertsteuersatz
-PowrSyncDefaultVatRateHelp=Mehrwertsteuersatz (netto), der bei der Aktualisierung von Lieferantenpreisen angewendet wird. Bei 0 wird die automatische Erkennung verwendet.
+PowrSyncDefaultVatRateHelp=Mehrwertsteuersatz (netto), der bei jeder Aktualisierung des Lieferanten-Einkaufspreises angewendet wird.
+PowrSyncDefaultVatRateRequired=Die Einstellung „Standard-Mehrwertsteuersatz“ ist erforderlich. Bitte in der PowrSync-Konfiguration ausfüllen.
 
 PowrSyncAboutPage=Informationen über das PowrSync-Modul
 PowrSyncAboutGeneral=Allgemeine Informationen

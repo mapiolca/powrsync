@@ -3,7 +3,8 @@
 PowrSyncSupplierUrlLabel=URL del producto del proveedor
 PowrSyncSupplierUrlTooltip=Introduzca la URL de la ficha de producto en la tienda del proveedor
 PowrSyncDefaultVatRate=Tasa de IVA predeterminada
-PowrSyncDefaultVatRateHelp=Tasa de IVA (sin impuestos) aplicada al actualizar los precios de proveedor. Deje 0 para usar la detección automática.
+PowrSyncDefaultVatRateHelp=Tasa de IVA (sin impuestos) aplicada en cada actualización del precio de compra del proveedor.
+PowrSyncDefaultVatRateRequired=El ajuste \"Tasa de IVA predeterminada\" es obligatorio. Configúrelo en la configuración de PowrSync.
 
 PowrSyncAboutPage=Información sobre el módulo PowrSync
 PowrSyncAboutGeneral=Información general
