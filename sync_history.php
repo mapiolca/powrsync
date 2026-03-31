@@ -39,7 +39,10 @@ $form = new Form($db);
 $limit = GETPOSTINT('limit') > 0 ? GETPOSTINT('limit') : $conf->liste_limit;
 $sortfield = GETPOST('sortfield', 'aZ09comma') ? GETPOST('sortfield', 'aZ09comma') : 'l.datec';
 $sortorder = GETPOST('sortorder', 'aZ09comma') ? GETPOST('sortorder', 'aZ09comma') : 'DESC';
-$page = max(0, GETPOSTINT('page'));
+$page = GETPOSTISSET('pageplusone') ? (GETPOSTINT('pageplusone') - 1) : GETPOSTINT('page');
+if (empty($page) || $page < 0 || GETPOST('button_search', 'alpha') || GETPOST('button_removefilter', 'alpha')) {
+	$page = 0;
+}
 $offset = $limit * $page;
 
 $search_ref_fourn = trim(GETPOST('search_ref_fourn', 'alphanohtml'));
@@ -155,6 +158,10 @@ if ($rescount) {
 	$total = (int) $objcount->nb;
 }
 
+$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : 'powrsyncsynchistory';
+$varpage = empty($contextpage) ? $_SERVER['PHP_SELF'] : $contextpage;
+$morehtmlright = $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, 0);
+
 $param = '';
 if ($search_ref_fourn !== '') {
 	$param .= '&search_ref_fourn='.urlencode($search_ref_fourn);
@@ -168,36 +175,10 @@ foreach ($arrayfields as $key => $meta) {
 	}
 }
 
-$limitChoices = array(
-	10 => 10,
-	25 => 25,
-	50 => 50,
-	100 => 100,
-	250 => 250,
-	500 => 500,
-);
-$columnChoices = array();
-foreach ($arrayfields as $key => $meta) {
-	$columnChoices[$key] = $langs->trans($meta['label']);
-}
-
-$morehtmlright = '<div class="nowraponall">';
-$morehtmlright .= '<span class="opacitymedium">'.$langs->trans('PowrSyncVisibleColumns').'</span> ';
-$morehtmlright .= '<select class="flat" multiple="multiple" name="selectedfields[]">';
-foreach ($columnChoices as $columnKey => $columnLabel) {
-	$selected = !empty($arrayfields[$columnKey]['checked']) ? ' selected="selected"' : '';
-	$morehtmlright .= '<option value="'.dol_escape_htmltag($columnKey).'"'.$selected.'>'.dol_escape_htmltag($columnLabel).'</option>';
-}
-$morehtmlright .= '</select>';
-$morehtmlright .= '&nbsp;&nbsp;<span class="opacitymedium">'.$langs->trans('PowrSyncRecordsPerPage').'</span> ';
-$morehtmlright .= $form->selectarray('limit', $limitChoices, $limit, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth75');
-$morehtmlright .= '&nbsp;<button class="button small" type="submit" name="button_applycolumns" value="1">'.$langs->trans('Apply').'</button>';
-$morehtmlright .= '</div>';
-
 llxHeader('', $langs->trans('PowrSyncLog'));
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
-print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, 'clock', 0, $morehtmlright, '', $limit);
+print_barre_liste($langs->trans('PowrSyncLog'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $num, $total, 'clock', 0, $morehtmlright, '', $limit, 0, 0, 1);
 
 print '<div class="div-table-responsive">';
 print '<table class="tagtable liste">';
