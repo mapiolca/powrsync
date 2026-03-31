@@ -2,3 +2,17 @@
 
 PowrSyncSupplierUrlLabel=URL del producto del proveedor
 PowrSyncSupplierUrlTooltip=Introduzca la URL de la ficha de producto en la tienda del proveedor
+
+PowrSyncAboutPage=Información sobre el módulo PowrSync
+PowrSyncAboutGeneral=Información general
+PowrSyncAboutVersion=Versión
+PowrSyncAboutFamily=Familia
+PowrSyncAboutDescription=Descripción
+PowrSyncAboutMaintainer=Mantenedor
+PowrSyncAboutResources=Recursos
+PowrSyncAboutDocumentation=Documentación
+PowrSyncAboutSupport=Soporte
+PowrSyncAboutContact=Contacto
+PowrSyncAbout=Acerca de PowrSync
+PowrSyncAboutDocumentationLink=Leer el archivo README
+PowrSyncAboutSupportValue=Contacte con su integrador para obtener soporte.

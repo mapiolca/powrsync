@@ -50,3 +50,17 @@ PowrLogError=Erreur
 
 PowrSyncSupplierUrlLabel=URL produit fournisseur
 PowrSyncSupplierUrlTooltip=Saisir l'URL menant à la fiche produit du shop fournisseur
+
+PowrSyncAboutPage=Informations sur le module PowrSync
+PowrSyncAboutGeneral=Informations générales
+PowrSyncAboutVersion=Version
+PowrSyncAboutFamily=Famille
+PowrSyncAboutDescription=Description
+PowrSyncAboutMaintainer=Mainteneur
+PowrSyncAboutResources=Ressources
+PowrSyncAboutDocumentation=Documentation
+PowrSyncAboutSupport=Support
+PowrSyncAboutContact=Contact
+PowrSyncAbout=À propos de PowrSync
+PowrSyncAboutDocumentationLink=Lire le fichier README
+PowrSyncAboutSupportValue=Contactez votre intégrateur pour le support.
