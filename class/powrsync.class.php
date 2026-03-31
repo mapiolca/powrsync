@@ -2,6 +2,8 @@
 /* Copyright (C) 2024 Votre Société — Licence GNU GPL v3 */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.php';
 
 /**
@@ -234,6 +236,15 @@ class PowrSync extends CommonObject
 
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
+		$vatTx = 0.0;
+
+		$thirdparty = new Societe($this->db);
+		if ($thirdparty->fetch((int) $supplierId) > 0) {
+			$vatTx = (float) price2num(get_default_tva($GLOBALS['mysoc'], $thirdparty));
+			if ($vatTx <= 0 && !empty($thirdparty->country_code) && $thirdparty->country_code === 'FR') {
+				$vatTx = 20.0;
+			}
+		}
 
 		// EN: Always initialize object context ids before update to prevent insert with fk_product/fk_soc at 0.
 		// FR: Toujours initialiser les IDs de contexte de l'objet avant update pour éviter un insert avec fk_product/fk_soc à 0.
@@ -261,7 +272,7 @@ class PowrSync extends CommonObject
 			$productFournisseur->ref_fourn  = $refFourn;
 			$productFournisseur->fourn_qty  = $qty;
 			$productFournisseur->fourn_price = $price;
-			$productFournisseur->fourn_tva_tx = 20.0; // TVA par défaut
+			$productFournisseur->fourn_tva_tx = $vatTx;
 			$productFournisseur->fourn_price_expression = '';
 		}
 
@@ -272,7 +283,7 @@ class PowrSync extends CommonObject
 			$GLOBALS['user'],
 			'HT',
 			$supplierId,
-			0, // tva_tx
+			$vatTx,
 			$refFourn,
 			0, // charges
 			0, // discount
