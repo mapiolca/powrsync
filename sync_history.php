@@ -49,7 +49,7 @@ if (GETPOST('button_removefilter', 'alpha')) {
 	$search_status = '';
 }
 
-$allowedSortFields = array('l.datec', 'l.ref_product', 'l.ref_fourn', 'l.status', 'u.login');
+$allowedSortFields = array('l.datec', 'l.ref_product', 'l.ref_fourn', 'l.status');
 if (!in_array($sortfield, $allowedSortFields, true)) {
 	$sortfield = 'l.datec';
 }
@@ -65,20 +65,15 @@ if ($rescol) {
 }
 
 $hasEntityColumn = !empty($availableColumns['entity']);
-$hasFkUserCreatColumn = !empty($availableColumns['fk_user_creat']);
 $hasRefProductColumn = !empty($availableColumns['ref_product']);
 $hasRefFournColumn = !empty($availableColumns['ref_fourn']);
 
 $sqlselect = "SELECT l.rowid, l.datec, l.fk_product, l.old_price, l.new_price, l.status, l.message";
 $sqlselect .= ", ".($hasRefProductColumn ? "l.ref_product" : "p.ref")." AS ref_product";
 $sqlselect .= ", ".($hasRefFournColumn ? "l.ref_fourn" : "''")." AS ref_fourn";
-$sqlselect .= ", ".($hasFkUserCreatColumn ? "u.login" : "''")." AS login";
 
 $sqlfrom = " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
 $sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
-if ($hasFkUserCreatColumn) {
-	$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."user AS u ON u.rowid = l.fk_user_creat";
-}
 $sqlwhere = " WHERE 1 = 1";
 if ($hasEntityColumn) {
 	$sqlwhere .= " AND l.entity IN (".getEntity('powrsync').")";
@@ -101,7 +96,6 @@ $sortFieldMap = array(
 	'l.ref_product' => 'ref_product',
 	'l.ref_fourn' => 'ref_fourn',
 	'l.status' => 'l.status',
-	'u.login' => ($hasFkUserCreatColumn ? 'u.login' : 'l.rowid'),
 );
 if (empty($sortFieldMap[$sortfield])) {
 	$sortfield = 'l.datec';
@@ -160,7 +154,6 @@ print $form->selectarray('search_status', array(
 	PowrConnectScraper::LOG_ERROR => $langs->trans('PowrLogError'),
 ), $search_status, 0, 0, 0, '', 0, 0, 0, '', 'maxwidth150');
 print '</td>';
-print '<td></td>';
 print '<td class="right">';
 print '<button class="button small" type="submit" name="button_search">'.$langs->trans('Search').'</button> ';
 print '<button class="button button-cancel small" type="submit" name="button_removefilter" value="x">'.$langs->trans('RemoveFilter').'</button>';
@@ -176,7 +169,6 @@ print '<td class="right">'.$langs->trans('NewPrice').'</td>';
 print '<td class="right">'.$langs->trans('Variation').'</td>';
 print getTitleFieldOfList($langs->trans('Status'), 0, $_SERVER['PHP_SELF'], 'l.status', '', $param, 'class="center"', $sortfield, $sortorder);
 print '<td>'.$langs->trans('Message').'</td>';
-print getTitleFieldOfList($langs->trans('User'), 0, $_SERVER['PHP_SELF'], 'u.login', '', $param, '', $sortfield, $sortorder);
 print '</tr>';
 
 if ($resql) {
@@ -216,16 +208,15 @@ if ($resql) {
 		} else {
 			print '-';
 		}
-		print '</td>';
-		print '<td class="center">'.$badge.'</td>';
-		print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
-		print '<td>'.dol_escape_htmltag($obj->login).'</td>';
-		print '</tr>';
+			print '</td>';
+			print '<td class="center">'.$badge.'</td>';
+			print '<td><span class="small">'.dol_escape_htmltag(dol_trunc($obj->message, 120)).'</span></td>';
+			print '</tr>';
+		}
+		$db->free($resql);
+	} else {
+		print '<tr class="oddeven"><td colspan="8"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
 	}
-	$db->free($resql);
-} else {
-	print '<tr class="oddeven"><td colspan="9"><span class="opacitymedium">'.dol_escape_htmltag($db->lasterror()).'</span></td></tr>';
-}
 
 print '</table>';
 print '</div>';
