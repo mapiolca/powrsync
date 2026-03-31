@@ -16,6 +16,7 @@ class PowrConnectScraper
 	private $requestDelay = 800000; // µs entre requêtes (0.8 s)
 	private $userAgent    = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
 	private $lastCsrfRaw  = '';
+	private $loginState   = 'none';
 
 	public $error = '';
 
@@ -107,9 +108,11 @@ class PowrConnectScraper
 	public function login($email, $password)
 	{
 		$this->debug('login() — début, user='.$email);
+		$this->loginState = 'none';
 
 		// Vérifie si on est déjà connecté via les cookies existants
 		if ($this->isSessionActive()) {
+			$this->loginState = 'already_connected';
 			return 1;
 		}
 
@@ -150,6 +153,7 @@ class PowrConnectScraper
 			$this->debug('No login form detected on /connexion, re-check active session before POST login');
 			if ($this->isSessionActive()) {
 				$this->debug('Active session confirmed after /connexion GET, skip login POST');
+				$this->loginState = 'already_connected';
 				return 1;
 			}
 			// EN: isSessionActive() re-initializes cURL, restore default handle settings for login flow.
@@ -245,6 +249,7 @@ class PowrConnectScraper
 				$this->debug('Cookie auth_token_sso après login : '.($hasAuth ? 'oui' : 'non'));
 				if ($hasAuth || strpos($headers, 'x-remix-redirect') !== false) {
 					$this->loggedIn = true;
+					$this->loginState = 'login_ok';
 					$this->debug('Login réussi — session active');
 					return 1;
 				}
@@ -252,9 +257,21 @@ class PowrConnectScraper
 		}
 
 		// Échec
+		$this->loginState = 'login_failed';
 		$this->error = 'Échec login HTTP '.$httpCode.' — vérifier les identifiants';
 		$this->debug('Échec login : HTTP '.$httpCode);
 		return -1;
+	}
+
+	/**
+	 * EN: Return latest login state (none|already_connected|login_ok|login_failed).
+	 * FR: Retourne l'état du dernier login (none|already_connected|login_ok|login_failed).
+	 *
+	 * @return string
+	 */
+	public function getLoginState()
+	{
+		return $this->loginState;
 	}
 
 	/**

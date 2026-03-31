@@ -70,15 +70,18 @@ if ($action == 'testconnect') {
 
 		$password = dol_decode($passEnc);
 		$loginResult = $scraper->login($login, $password);
+		$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'none';
 
 		if ($loginResult < 0) {
 			setEventMessages('Connexion échouée : '.$scraper->error, null, 'errors');
 		} else {
 			$price = $scraper->getPrice('TEST', $testUrl);
 			if ($price === false) {
-				setEventMessages('Connexion OK mais impossible de lire le prix : '.$scraper->error, null, 'warnings');
+				$connectionLabel = ($loginState === 'already_connected') ? 'Déjà connecté' : 'Connexion OK';
+				setEventMessages($connectionLabel.' mais impossible de lire le prix : '.$scraper->error, null, 'warnings');
 			} else {
-				setEventMessages('Connexion OK — Prix récupéré : '.price($price, 0, $langs, 1, -1, 2, $conf->currency), null, 'mesgs');
+				$connectionLabel = ($loginState === 'already_connected') ? 'Déjà connecté' : 'Connexion OK';
+				setEventMessages($connectionLabel.' — Prix récupéré : '.price($price, 0, $langs, 1, -1, 2, $conf->currency), null, 'mesgs');
 			}
 		}
 		$scraper->close();
