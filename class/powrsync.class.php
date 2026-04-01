@@ -55,7 +55,7 @@ class PowrSync extends CommonObject
 		if (empty($email) || empty($password)) {
 			$this->error = 'Identifiants POwR Connect non configurés (Menu : Config > POwR Sync)';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return 1;
 		}
 
 		// Use configured supplier first to mirror sync.php behavior
@@ -66,13 +66,15 @@ class PowrSync extends CommonObject
 		if ($this->supplierId <= 0) {
 			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr. Le créer d\'abord.';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return 1;
 		}
 
 		// Récupérer les produits avec une ref POwR Connect
 		$products = $this->getProductsWithPowrRef();
 		if (empty($products)) {
-			dol_syslog('PowrSync success: 0 product checked, 0 updated, 0 error', LOG_INFO);
+			$this->output = "PowrSync success: 0 product checked, 0 updated, 0 error";
+			dol_syslog($this->output , LOG_INFO);
+			
 			return 0;
 		}
 
@@ -83,7 +85,7 @@ class PowrSync extends CommonObject
 		if ($scraper->login($email, $password) < 0) {
 			$this->error = 'Connexion POwR Connect échouée : '.$scraper->error;
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return 1;
 		}
 
 		// Synchronisation produit par produit
@@ -99,8 +101,9 @@ class PowrSync extends CommonObject
 		$scraper->close();
 
 		$errorCount = count($this->errors);
-		dol_syslog('PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error', LOG_INFO);
-		return $updatedCount;
+		$this->output = 'PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error';
+		dol_syslog($this->output, LOG_INFO);
+		return 0;
 	}
 
 	// ─── Synchronisation d'un produit ──────────────────────────────────────
