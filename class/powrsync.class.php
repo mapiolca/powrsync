@@ -99,8 +99,9 @@ class PowrSync extends CommonObject
 		$scraper->close();
 
 		$errorCount = count($this->errors);
+		$this->output = 'PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error';
 		dol_syslog('PowrSync success: '.$checkedCount.' products checked, '.$updatedCount.' updated, '.$errorCount.' error', LOG_INFO);
-		return $updatedCount;
+		return 0;
 	}
 
 	// ─── Synchronisation d'un produit ──────────────────────────────────────
