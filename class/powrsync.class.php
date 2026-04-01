@@ -55,7 +55,7 @@ class PowrSync extends CommonObject
 		if (empty($email) || empty($password)) {
 			$this->error = 'Identifiants POwR Connect non configurés (Menu : Config > POwR Sync)';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return -1;
 		}
 
 		// Use configured supplier first to mirror sync.php behavior
@@ -66,7 +66,7 @@ class PowrSync extends CommonObject
 		if ($this->supplierId <= 0) {
 			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr. Le créer d\'abord.';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return -1;
 		}
 
 		// Récupérer les produits avec une ref POwR Connect
@@ -83,7 +83,7 @@ class PowrSync extends CommonObject
 		if ($scraper->login($email, $password) < 0) {
 			$this->error = 'Connexion POwR Connect échouée : '.$scraper->error;
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 0;
+			return -1;
 		}
 
 		// Synchronisation produit par produit
