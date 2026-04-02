@@ -1,26 +1,7 @@
 <?php
-/* Copyright (C) 2026 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
+/* Copyright (C) 2024 - Module PowrSync
+ * Page de synchronisation des prix POwR Connect
  */
-
-/**
- *   	\file       sync.php
- *		\ingroup    powrsync.php
- *		\brief      manual sync page
- */
-
 
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
@@ -331,22 +312,49 @@ if (!$configOk) {
 }
 
 // Confirmation avant sync global
-if ($action == 'syncall') {
-	print '<div class="warning" style="margin-bottom:15px;">';
-	print '<p>'.$langs->trans('PowrSyncConfirmAll').'</p>';
-	print '<a class="button" href="'.$_SERVER['PHP_SELF'].'?action=syncall_batch&offset=0&total=0&updated=0&errors=0&start_ts=0&token='.newToken().'">'.$langs->trans('Confirm').'</a> ';
-	print '<a class="button button-cancel" href="'.$_SERVER['PHP_SELF'].'">'.$langs->trans('Cancel').'</a>';
-	print '</div>';
-}
+if ($user->hasRight('powrsync', 'synclog', 'write')) {
+	$syncUrl = $_SERVER['PHP_SELF'].'?action=syncall_batch&offset=0&total=0&updated=0&errors=0&start_ts=0&token='.newToken();
 
-// Bouton de sync global
-if ($user->hasRight('powrsync', 'synclog', 'write') && $action != 'syncall') {
 	print '<div class="tabsAction">';
-	print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?action=syncall&token='.newToken().'">';
+	print '<a class="butAction" id="btn-powrsync-all" href="#">';
 	print img_picto('', 'refresh', 'class="pictofixedwidth"');
 	print ' '.$langs->trans('SyncAllPrices');
 	print '</a>';
 	print '</div>';
+
+	// Modal de confirmation
+	print '<div id="powrsync-confirm-modal" style="display:none;" title="'.$langs->trans('SyncAllPrices').'">';
+	print '<p>';
+	print img_picto('', 'warning', 'class="pictofixedwidth"');
+	print ' '.$langs->trans('PowrSyncConfirmAll');
+	print '</p>';
+	print '</div>';
+
+	if (!empty($conf->use_javascript_ajax)) {
+		print '<script>';
+		print 'jQuery(function($) {';
+		print '  var confirmUrl = '.json_encode($syncUrl).';';
+		print '  $("#powrsync-confirm-modal").dialog({';
+		print '    autoOpen: false,';
+		print '    modal: true,';
+		print '    width: 460,';
+		print '    resizable: false,';
+		print '    buttons: {';
+		print '      '.json_encode($langs->trans('Confirm')).': function() {';
+		print '        window.location = confirmUrl;';
+		print '      },';
+		print '      '.json_encode($langs->trans('Cancel')).': function() {';
+		print '        $(this).dialog("close");';
+		print '      }';
+		print '    }';
+		print '  });';
+		print '  $("#btn-powrsync-all").on("click", function(e) {';
+		print '    e.preventDefault();';
+		print '    $("#powrsync-confirm-modal").dialog("open");';
+		print '  });';
+		print '});';
+		print '</script>';
+	}
 }
 
 // Liste des produits avec ref POwR Connect
