@@ -9,6 +9,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/tax.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
+require_once dol_buildpath('/powrsync/class/powrsync.class.php', 0);
 require_once dol_buildpath('/powrsync/class/powrconnectscraper.class.php', 0);
 
 $langs->loadLangs(array('products', 'suppliers', 'powrsync@powrsync'));
@@ -295,7 +296,9 @@ $total = 0;
 
 llxHeader('', $langs->trans('PowrSyncTitle'));
 
-print_barre_liste($langs->trans('PowrSyncTitle'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, 'fa fa-sun', 0, '', '', $limit);
+$object = new PowrSync($db);
+
+print_barre_liste($langs->trans('PowrSyncTitle'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, $object->picto, 0, '', '', $limit);
 
 // Vérification de la configuration
 $configOk = ($fkSoc > 0 && !empty($email) && !empty($pwd));
