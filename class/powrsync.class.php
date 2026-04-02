@@ -14,6 +14,7 @@ class PowrSync extends CommonObject
 {
 	public $element       = 'powrsync';
 	public $table_element = 'powrsync_log';
+	public $picto         = 'fa-sun';
 
 	/** Nom du fournisseur tel qu'enregistré dans Dolibarr (llx_societe.nom) */
 	private $supplierName = 'POwR Connect';
