@@ -1,5 +1,8 @@
 # Changelog DynamicsPrices
 
+## 1.0.3 (26/06/2026)
+- Applique la numérotation native des permissions avec `{ID module * 100} + $r` et migre les attributions existantes. / Apply native permission numbering with `{module ID * 100} + $r` and migrate existing assignments.
+
 ## 1.0.2 (02/04/2026)
 - Affine la méthode de mise à jour des produits / Refine the product update method
 - Passe la demande de confirmation sous forme de modal / Pass the confirmation request as a modal

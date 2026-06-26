@@ -32,7 +32,7 @@ class modPowrSync extends DolibarrModules
 		$this->editor_url     = 'https://lesmetiersdubatiment.fr';
 		$this->editor_squarred_logo = 'lesmetiersdubatiment.png@powrsync';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@powrsync'
 
-		$this->version        = '1.0.2';
+		$this->version        = '1.0.3';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto          = 'powrconnect@powrsync';
 
@@ -68,21 +68,22 @@ class modPowrSync extends DolibarrModules
 		$this->rights = array();
 		$r = 0;
 
-		$this->rights[$r][0] = $this->numero + $r + 1;
+		$r++;
+		$this->rights[$r][0] = $this->numero * 100 + $r;
 		$this->rights[$r][1] = 'Consulter les logs de synchronisation POwR Connect';
 		$this->rights[$r][3] = 1;
 		$this->rights[$r][4] = 'synclog';
 		$this->rights[$r][5] = 'read';
-		$r++;
 
-		$this->rights[$r][0] = $this->numero + $r + 1;
+		$r++;
+		$this->rights[$r][0] = $this->numero * 100 + $r;
 		$this->rights[$r][1] = 'Lancer une synchronisation POwR Connect';
 		$this->rights[$r][3] = 0;
 		$this->rights[$r][4] = 'synclog';
 		$this->rights[$r][5] = 'write';
-		$r++;
 
-		$this->rights[$r][0] = $this->numero + $r + 1;
+		$r++;
+		$this->rights[$r][0] = $this->numero * 100 + $r;
 		$this->rights[$r][1] = 'Configurer le module POwR Connect';
 		$this->rights[$r][3] = 0;
 		$this->rights[$r][4] = 'config';
@@ -139,6 +140,11 @@ class modPowrSync extends DolibarrModules
 
 	public function init($options = '')
 	{
+		$result = $this->migrateLegacyPermissionIds();
+		if ($result < 0) {
+			return -1;
+		}
+
 		$result = $this->_init(array(), $options);
 		if ($result < 0) {
 			return -1;
@@ -204,6 +210,81 @@ class modPowrSync extends DolibarrModules
 		$this->db->query($sql);
 
 		return $result;
+	}
+
+	/**
+	 * Migrate permissions granted before the 1.0.3 numbering fix.
+	 *
+	 * @return int 1 if OK, -1 on error
+	 */
+	protected function migrateLegacyPermissionIds()
+	{
+		$permissionMap = array(
+			$this->numero + 1 => $this->numero * 100 + 1,
+			$this->numero + 2 => $this->numero * 100 + 2,
+			$this->numero + 3 => $this->numero * 100 + 3,
+		);
+
+		$this->db->begin();
+
+		foreach ($permissionMap as $oldId => $newId) {
+			$oldId = (int) $oldId;
+			$newId = (int) $newId;
+			$rightsClass = $this->db->escape($this->rights_class);
+			$legacyIdIsNotOwnedByAnotherModule = "NOT EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."rights_def AS rd WHERE rd.id = ".$oldId." AND rd.module <> '".$rightsClass."')";
+
+			$sql = "INSERT IGNORE INTO ".MAIN_DB_PREFIX."user_rights (entity, fk_user, fk_id)";
+			$sql .= " SELECT ur.entity, ur.fk_user, ".$newId;
+			$sql .= " FROM ".MAIN_DB_PREFIX."user_rights AS ur";
+			$sql .= " WHERE ur.fk_id = ".$oldId;
+			$sql .= " AND ".$legacyIdIsNotOwnedByAnotherModule;
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+
+			$sql = "DELETE FROM ".MAIN_DB_PREFIX."user_rights";
+			$sql .= " WHERE fk_id = ".$oldId;
+			$sql .= " AND ".$legacyIdIsNotOwnedByAnotherModule;
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+
+			$sql = "INSERT IGNORE INTO ".MAIN_DB_PREFIX."usergroup_rights (entity, fk_usergroup, fk_id)";
+			$sql .= " SELECT ugr.entity, ugr.fk_usergroup, ".$newId;
+			$sql .= " FROM ".MAIN_DB_PREFIX."usergroup_rights AS ugr";
+			$sql .= " WHERE ugr.fk_id = ".$oldId;
+			$sql .= " AND ".$legacyIdIsNotOwnedByAnotherModule;
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+
+			$sql = "DELETE FROM ".MAIN_DB_PREFIX."usergroup_rights";
+			$sql .= " WHERE fk_id = ".$oldId;
+			$sql .= " AND ".$legacyIdIsNotOwnedByAnotherModule;
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+
+			$sql = "DELETE FROM ".MAIN_DB_PREFIX."rights_def";
+			$sql .= " WHERE id = ".$oldId;
+			$sql .= " AND module = '".$rightsClass."'";
+			if (!$this->db->query($sql)) {
+				$this->error = $this->db->lasterror();
+				$this->db->rollback();
+				return -1;
+			}
+		}
+
+		$this->db->commit();
+		return 1;
 	}
 
 	public function remove($options = '')
