@@ -150,8 +150,9 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 		print '</p>';
 
 		// --- Logs de la session en cours (du plus récent au plus ancien) ---
-		$sqlLogs  = "SELECT l.ref_product, l.ref_fourn, l.old_price, l.new_price, l.status, l.message, l.datec";
+		$sqlLogs  = "SELECT COALESCE(p.ref, CAST(l.fk_product AS CHAR)) AS ref_product, l.ref_fourn, l.old_price, l.new_price, l.status, l.message, l.datec";
 		$sqlLogs .= " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
+		$sqlLogs .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
 		$sqlLogs .= " WHERE l.datec >= '".$db->idate($startTs)."'";
 		$sqlLogs .= " ORDER BY l.datec DESC, l.rowid DESC";
 

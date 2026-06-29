@@ -50,7 +50,16 @@ class PowrSync extends CommonObject
 			$email    = getDolGlobalString('POWRSYNC_LOGIN');
 		}
 		if (empty($password)) {
-			$password = getDolGlobalString('POWRSYNC_PASSWORD');
+			$encodedPassword = getDolGlobalString('POWRSYNC_PASSWORD');
+			if ($encodedPassword !== '') {
+				$decodedPassword = dol_decode($encodedPassword);
+				if ($decodedPassword === false || $decodedPassword === '') {
+					$this->error = 'Impossible de décoder le mot de passe POwR Connect configuré.';
+					dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
+					return 1;
+				}
+				$password = (string) $decodedPassword;
+			}
 		}
 
 		if (empty($email) || empty($password)) {
