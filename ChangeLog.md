@@ -1,4 +1,10 @@
-# Changelog DynamicsPrices
+# ChangeLog PowrSync
+
+## 1.0.4 (29/06/2026)
+- Corrige l'authentification depuis les travaux planifiés Dolibarr : décodage du mot de passe stocké avec `dol_encode()`, purge des cookies expirés et retry conservant le cookie de session intermédiaire après un HTTP 302.
+- Corrige le chargement de la classe native `ProductFournisseur` via `fourn/class/fournisseur.product.class.php` pour éviter le fatal sur les crons.
+- Corrige la requête de progression de `sync.php` en lisant la référence produit via `fk_product` et la table native `product`, sans dépendre de la colonne inexistante `l.ref_product`.
+- Ajoute des logs cron explicites avec entité, login masqué et révision de code pour diagnostiquer les exécutions planifiées.
 
 ## 1.0.3 (26/06/2026)
 - Applique la numérotation native des permissions avec `{ID module * 100} + $r` et migre les attributions existantes. / Apply native permission numbering with `{module ID * 100} + $r` and migrate existing assignments.
