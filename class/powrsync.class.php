@@ -45,6 +45,9 @@ class PowrSync extends CommonObject
 	{
 		global $conf;
 
+		$entity = isset($conf->entity) ? (int) $conf->entity : 1;
+		dol_syslog('PowrSync cron: start syncAllProducts entity='.$entity, LOG_NOTICE);
+
 		// Récupération des identifiants depuis la config si non fournis
 		if (empty($email)) {
 			$email    = getDolGlobalString('POWRSYNC_LOGIN');
@@ -54,7 +57,7 @@ class PowrSync extends CommonObject
 			if ($encodedPassword !== '') {
 				$decodedPassword = dol_decode($encodedPassword);
 				if ($decodedPassword === false || $decodedPassword === '') {
-					$this->error = 'Impossible de décoder le mot de passe POwR Connect configuré.';
+					$this->error = 'Impossible de décoder le mot de passe POwR Connect configuré pour l\'entité '.$entity.'.';
 					dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
 					return 1;
 				}
@@ -63,18 +66,25 @@ class PowrSync extends CommonObject
 		}
 
 		if (empty($email) || empty($password)) {
-			$this->error = 'Identifiants POwR Connect non configurés (Menu : Config > POwR Sync)';
+			$this->error = 'Identifiants POwR Connect non configurés pour l\'entité '.$entity.' (Menu : Config > POwR Sync)';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
 			return 1;
 		}
 
 		// Use configured supplier first to mirror sync.php behavior
 		$this->supplierId = (int) getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
+		dol_syslog(
+			'PowrSync cron: configuration entity='.$entity
+			.' login='.$this->maskLoginForLog($email)
+			.' password_configured=yes'
+			.' supplier_id='.$this->supplierId,
+			LOG_NOTICE
+		);
 		if ($this->supplierId <= 0) {
 			$this->supplierId = $this->findSupplierId();
 		}
 		if ($this->supplierId <= 0) {
-			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr. Le créer d\'abord.';
+			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr pour l\'entité '.$entity.'. Le créer d\'abord.';
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
 			return 1;
 		}
@@ -93,10 +103,12 @@ class PowrSync extends CommonObject
 		$scraper = new PowrConnectScraper($tempDir);
 
 		if ($scraper->login($email, $password) < 0) {
-			$this->error = 'Connexion POwR Connect échouée : '.$scraper->error;
-			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
+			$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'unknown';
+			$this->error = 'Connexion POwR Connect échouée pour l\'entité '.$entity.' avec le login '.$this->maskLoginForLog($email).' : '.$scraper->error;
+			dol_syslog('PowrSync: '.$this->error.' login_state='.$loginState.' supplier_id='.$this->supplierId, LOG_WARNING);
 			return 1;
 		}
+		dol_syslog('PowrSync cron: login ok entity='.$entity.' login='.$this->maskLoginForLog($email).' supplier_id='.$this->supplierId, LOG_NOTICE);
 
 		// Synchronisation produit par produit
 		$updatedCount = 0;
@@ -491,6 +503,31 @@ class PowrSync extends CommonObject
 	{
 		$this->errors[] = $msg;
 		dol_syslog('PowrSync ERROR: '.$msg, LOG_ERR);
+	}
+
+	/**
+	 * Mask a login before writing it to logs.
+	 *
+	 * @param string $login
+	 * @return string
+	 */
+	private function maskLoginForLog($login)
+	{
+		$login = trim((string) $login);
+		if ($login === '') {
+			return '(empty)';
+		}
+
+		$atPosition = strpos($login, '@');
+		if ($atPosition === false) {
+			return substr($login, 0, 2).'***';
+		}
+
+		$localPart = substr($login, 0, $atPosition);
+		$domain = substr($login, $atPosition + 1);
+		$prefix = substr($localPart, 0, 2);
+
+		return $prefix.'***@'.$domain;
 	}
 
 	/**
