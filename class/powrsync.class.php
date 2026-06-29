@@ -12,6 +12,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.
  */
 class PowrSync extends CommonObject
 {
+	private const CODE_REVISION = '2026-06-29-productfournisseur-loader-v2';
+
 	public $element       = 'powrsync';
 	public $table_element = 'powrsync_log';
 	public $picto         = 'fa-sun';
@@ -46,7 +48,7 @@ class PowrSync extends CommonObject
 		global $conf;
 
 		$entity = isset($conf->entity) ? (int) $conf->entity : 1;
-		dol_syslog('PowrSync cron: start syncAllProducts entity='.$entity, LOG_NOTICE);
+		dol_syslog('PowrSync cron: start syncAllProducts entity='.$entity.' code_revision='.self::CODE_REVISION.' file='.__FILE__, LOG_NOTICE);
 
 		// Récupération des identifiants depuis la config si non fournis
 		if (empty($email)) {
