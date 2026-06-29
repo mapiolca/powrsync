@@ -286,7 +286,15 @@ class PowrSync extends CommonObject
 	{
 		global $langs;
 
-		require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
+		if (!class_exists('ProductFournisseur')) {
+			$classFile = DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
+			if (!is_readable($classFile)) {
+				$this->error = 'Classe Dolibarr ProductFournisseur introuvable : '.$classFile;
+				dol_syslog('PowrSync: '.$this->error, LOG_ERR);
+				return -1;
+			}
+			require_once $classFile;
+		}
 
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
