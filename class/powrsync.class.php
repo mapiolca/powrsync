@@ -12,7 +12,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.
  */
 class PowrSync extends CommonObject
 {
-	private const CODE_REVISION = '2026-06-29-productfournisseur-loader-v2';
+	private const CODE_REVISION = '2026-06-29-login-retry-cookie-v3';
 
 	public $element       = 'powrsync';
 	public $table_element = 'powrsync_log';
@@ -113,11 +113,8 @@ class PowrSync extends CommonObject
 
 		$loginResult = $scraper->login($email, $password);
 		if ($loginResult < 0) {
-			dol_syslog('PowrSync cron: initial login failed, retry once entity='.$entity.' login='.$this->maskLoginForLog($email), LOG_NOTICE);
-			$scraper->close();
+			dol_syslog('PowrSync cron: initial login failed, retry once with same session cookie entity='.$entity.' login='.$this->maskLoginForLog($email), LOG_NOTICE);
 			sleep(1);
-			$this->purgeSessionCookies($tempDir);
-			$scraper = new PowrConnectScraper($tempDir);
 			$loginResult = $scraper->login($email, $password);
 		}
 
