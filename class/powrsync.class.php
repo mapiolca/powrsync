@@ -12,6 +12,8 @@ require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.
  */
 class PowrSync extends CommonObject
 {
+	private const CODE_REVISION = '2026-06-29-login-retry-cookie-v3';
+
 	public $element       = 'powrsync';
 	public $table_element = 'powrsync_log';
 	public $picto         = 'fa-sun';
@@ -45,6 +47,9 @@ class PowrSync extends CommonObject
 	{
 		global $conf;
 
+		$entity = isset($conf->entity) ? (int) $conf->entity : 1;
+		dol_syslog('PowrSync cron: start syncAllProducts entity='.$entity.' code_revision='.self::CODE_REVISION.' file='.__FILE__, LOG_NOTICE);
+
 		// Récupération des identifiants depuis la config si non fournis
 		if (empty($email)) {
 			$email    = getDolGlobalString('POWRSYNC_LOGIN');
@@ -54,29 +59,39 @@ class PowrSync extends CommonObject
 			if ($encodedPassword !== '') {
 				$decodedPassword = dol_decode($encodedPassword);
 				if ($decodedPassword === false || $decodedPassword === '') {
-					$this->error = 'Impossible de décoder le mot de passe POwR Connect configuré.';
+					$this->error = 'Impossible de décoder le mot de passe POwR Connect configuré pour l\'entité '.$entity.'.';
+					$this->output = $this->error;
 					dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-					return 1;
+					return -1;
 				}
 				$password = (string) $decodedPassword;
 			}
 		}
 
 		if (empty($email) || empty($password)) {
-			$this->error = 'Identifiants POwR Connect non configurés (Menu : Config > POwR Sync)';
+			$this->error = 'Identifiants POwR Connect non configurés pour l\'entité '.$entity.' (Menu : Config > POwR Sync)';
+			$this->output = $this->error;
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 1;
+			return -1;
 		}
 
 		// Use configured supplier first to mirror sync.php behavior
 		$this->supplierId = (int) getDolGlobalInt('POWRSYNC_SUPPLIER_ID');
+		dol_syslog(
+			'PowrSync cron: configuration entity='.$entity
+			.' login='.$this->maskLoginForLog($email)
+			.' password_configured=yes'
+			.' supplier_id='.$this->supplierId,
+			LOG_NOTICE
+		);
 		if ($this->supplierId <= 0) {
 			$this->supplierId = $this->findSupplierId();
 		}
 		if ($this->supplierId <= 0) {
-			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr. Le créer d\'abord.';
+			$this->error = 'Fournisseur "'.$this->supplierName.'" introuvable dans Dolibarr pour l\'entité '.$entity.'. Le créer d\'abord.';
+			$this->output = $this->error;
 			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 1;
+			return -1;
 		}
 
 		// Récupérer les produits avec une ref POwR Connect
@@ -89,14 +104,28 @@ class PowrSync extends CommonObject
 		}
 
 		// Connexion au site POwR Connect
-		$tempDir = $conf->powrsync->dir_temp ?: sys_get_temp_dir();
+		$tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
+		$deletedCookieFiles = $this->purgeSessionCookies($tempDir);
+		if ($deletedCookieFiles > 0) {
+			dol_syslog('PowrSync cron: purged '.$deletedCookieFiles.' stale session cookie file(s) entity='.$entity, LOG_NOTICE);
+		}
 		$scraper = new PowrConnectScraper($tempDir);
 
-		if ($scraper->login($email, $password) < 0) {
-			$this->error = 'Connexion POwR Connect échouée : '.$scraper->error;
-			dol_syslog('PowrSync: '.$this->error, LOG_WARNING);
-			return 1;
+		$loginResult = $scraper->login($email, $password);
+		if ($loginResult < 0) {
+			dol_syslog('PowrSync cron: initial login failed, retry once with same session cookie entity='.$entity.' login='.$this->maskLoginForLog($email), LOG_NOTICE);
+			sleep(1);
+			$loginResult = $scraper->login($email, $password);
 		}
+
+		if ($loginResult < 0) {
+			$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'unknown';
+			$this->error = 'Connexion POwR Connect échouée pour l\'entité '.$entity.' avec le login '.$this->maskLoginForLog($email).' : '.$scraper->error;
+			$this->output = $this->error;
+			dol_syslog('PowrSync: '.$this->error.' login_state='.$loginState.' supplier_id='.$this->supplierId, LOG_WARNING);
+			return -1;
+		}
+		dol_syslog('PowrSync cron: login ok entity='.$entity.' login='.$this->maskLoginForLog($email).' supplier_id='.$this->supplierId, LOG_NOTICE);
 
 		// Synchronisation produit par produit
 		$updatedCount = 0;
@@ -256,7 +285,15 @@ class PowrSync extends CommonObject
 	{
 		global $langs;
 
-		require_once DOL_DOCUMENT_ROOT.'/product/class/productfournisseur.class.php';
+		if (!class_exists('ProductFournisseur')) {
+			$classFile = DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.product.class.php';
+			if (!is_readable($classFile)) {
+				$this->error = 'Classe Dolibarr ProductFournisseur introuvable : '.$classFile;
+				dol_syslog('PowrSync: '.$this->error, LOG_ERR);
+				return -1;
+			}
+			require_once $classFile;
+		}
 
 		$productFournisseur = new ProductFournisseur($this->db);
 		$qty = max(1, $qty);
@@ -491,6 +528,59 @@ class PowrSync extends CommonObject
 	{
 		$this->errors[] = $msg;
 		dol_syslog('PowrSync ERROR: '.$msg, LOG_ERR);
+	}
+
+	/**
+	 * Mask a login before writing it to logs.
+	 *
+	 * @param string $login
+	 * @return string
+	 */
+	private function maskLoginForLog($login)
+	{
+		$login = trim((string) $login);
+		if ($login === '') {
+			return '(empty)';
+		}
+
+		$atPosition = strpos($login, '@');
+		if ($atPosition === false) {
+			return substr($login, 0, 2).'***';
+		}
+
+		$localPart = substr($login, 0, $atPosition);
+		$domain = substr($login, $atPosition + 1);
+		$prefix = substr($localPart, 0, 2);
+
+		return $prefix.'***@'.$domain;
+	}
+
+	/**
+	 * Remove stale scraper session cookies before a cron authentication attempt.
+	 *
+	 * @param string $tempDir Temporary directory used by the scraper
+	 * @return int Number of removed cookie files
+	 */
+	private function purgeSessionCookies($tempDir)
+	{
+		$tempDir = trim((string) $tempDir);
+		if ($tempDir === '') {
+			return 0;
+		}
+
+		$files = glob(rtrim($tempDir, '/\\').'/powrsync_*.txt');
+		if (!is_array($files)) {
+			return 0;
+		}
+
+		$deleted = 0;
+		foreach ($files as $file) {
+			if (is_string($file) && is_file($file) && @unlink($file)) {
+				$deleted++;
+			}
+		}
+
+		return $deleted;
 	}
 
 	/**
