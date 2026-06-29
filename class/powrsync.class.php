@@ -102,10 +102,24 @@ class PowrSync extends CommonObject
 		}
 
 		// Connexion au site POwR Connect
-		$tempDir = $conf->powrsync->dir_temp ?: sys_get_temp_dir();
+		$tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
+		$deletedCookieFiles = $this->purgeSessionCookies($tempDir);
+		if ($deletedCookieFiles > 0) {
+			dol_syslog('PowrSync cron: purged '.$deletedCookieFiles.' stale session cookie file(s) entity='.$entity, LOG_NOTICE);
+		}
 		$scraper = new PowrConnectScraper($tempDir);
 
-		if ($scraper->login($email, $password) < 0) {
+		$loginResult = $scraper->login($email, $password);
+		if ($loginResult < 0) {
+			dol_syslog('PowrSync cron: initial login failed, retry once entity='.$entity.' login='.$this->maskLoginForLog($email), LOG_NOTICE);
+			$scraper->close();
+			sleep(1);
+			$this->purgeSessionCookies($tempDir);
+			$scraper = new PowrConnectScraper($tempDir);
+			$loginResult = $scraper->login($email, $password);
+		}
+
+		if ($loginResult < 0) {
 			$loginState = method_exists($scraper, 'getLoginState') ? $scraper->getLoginState() : 'unknown';
 			$this->error = 'Connexion POwR Connect échouée pour l\'entité '.$entity.' avec le login '.$this->maskLoginForLog($email).' : '.$scraper->error;
 			$this->output = $this->error;
@@ -532,6 +546,34 @@ class PowrSync extends CommonObject
 		$prefix = substr($localPart, 0, 2);
 
 		return $prefix.'***@'.$domain;
+	}
+
+	/**
+	 * Remove stale scraper session cookies before a cron authentication attempt.
+	 *
+	 * @param string $tempDir Temporary directory used by the scraper
+	 * @return int Number of removed cookie files
+	 */
+	private function purgeSessionCookies($tempDir)
+	{
+		$tempDir = trim((string) $tempDir);
+		if ($tempDir === '') {
+			return 0;
+		}
+
+		$files = glob(rtrim($tempDir, '/\\').'/powrsync_*.txt');
+		if (!is_array($files)) {
+			return 0;
+		}
+
+		$deleted = 0;
+		foreach ($files as $file) {
+			if (is_string($file) && is_file($file) && @unlink($file)) {
+				$deleted++;
+			}
+		}
+
+		return $deleted;
 	}
 
 	/**
