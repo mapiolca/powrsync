@@ -36,6 +36,9 @@ class modPowrSync extends DolibarrModules
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto          = 'powrconnect@powrsync';
 
+		$this->phpmin = array(8, 0);
+		$this->need_dolibarr_version = array(20, 0);
+
 		$this->dirs = array("/powrsync/temp");
 
 		$this->config_page_url = array("setup.php@powrsync");
@@ -61,6 +64,7 @@ class modPowrSync extends DolibarrModules
 				'unitfrequency' => 3600,
 				'status'        => 0,
 				'test'          => 'isModEnabled("powrsync")',
+				'priority'      => 50,
 			),
 		);
 
@@ -145,22 +149,17 @@ class modPowrSync extends DolibarrModules
 			return -1;
 		}
 
-		$result = $this->_init(array(), $options);
-		if ($result < 0) {
-			return -1;
-		}
-
 		// EN: Create synchronization log table if missing at module activation.
 		// FR: Crée la table de logs de synchronisation si elle n'existe pas à l'activation du module.
 		$sql = "CREATE TABLE IF NOT EXISTS ".MAIN_DB_PREFIX."powrsync_log (";
 		$sql .= " rowid INTEGER AUTO_INCREMENT PRIMARY KEY,";
-		$sql .= " fk_product INTEGER NOT NULL,";
+		$sql .= " entity INTEGER NOT NULL DEFAULT 1, ref_fourn VARCHAR(255) NULL, fk_product INTEGER NOT NULL,";
 		$sql .= " datec DATETIME NOT NULL,";
 		$sql .= " old_price DOUBLE(24,8) NULL,";
 		$sql .= " new_price DOUBLE(24,8) NULL,";
 		$sql .= " status VARCHAR(20) NOT NULL,";
 		$sql .= " message TEXT NULL,";
-		$sql .= " INDEX idx_powrsync_log_fk_product (fk_product),";
+		$sql .= " INDEX idx_powrsync_log_entity (entity), INDEX idx_powrsync_log_fk_product (fk_product),";
 		$sql .= " INDEX idx_powrsync_log_datec (datec),";
 		$sql .= " INDEX idx_powrsync_log_status (status)";
 		$sql .= ") ENGINE=innodb";
@@ -173,15 +172,16 @@ class modPowrSync extends DolibarrModules
 
 		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 
-		// Enable extrafield visibility by default
-		dolibarr_set_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', '1', 'yesno', 0, '', 0);
+		if ($this->upgradeLogSchema() < 0 || $this->initSupplierUrlSetting() < 0) {
+			return -1;
+		}
 
 		// Create extrafield "supplier_url" on supplier purchase prices if missing
 		require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
-		$existing = $extrafields->fetch_name_optionals_label('product_fournisseur_price');
-		if (!isset($existing['supplier_url'])) {
-			$extrafields->addExtraField(
+		$extrafields->fetch_name_optionals_label('product_fournisseur_price');
+		if (!isset($extrafields->attributes['product_fournisseur_price']['label']['supplier_url'])) {
+			$result = $extrafields->addExtraField(
 				'supplier_url',                     // attrname
 				'PowrSyncSupplierUrlLabel',         // label
 				'url',                               // type
@@ -198,18 +198,16 @@ class modPowrSync extends DolibarrModules
 				'PowrSyncSupplierUrlTooltip',         // help
 				'',                                   // computed
 				0,                                    // entity (all entities)
-				'powrsync@powrsync'                   // langfile
+				'powrsync@powrsync',                  // langfile
+				'(getDolGlobalInt("SYNC_URL_SUPPLIER_EXTRAFIELD") == 1)' // enabled
 			);
+			if ($result < 0) {
+				$this->error = $extrafields->error;
+				return -1;
+			}
 		}
 
-		// Ensure visibility is active for all entities
-		$sql = "UPDATE ".MAIN_DB_PREFIX."extrafields";
-		$sql .= " SET enabled = '(getDolGlobalInt(\"SYNC_URL_SUPPLIER_EXTRAFIELD\") == 1)', entity = 0";
-		$sql .= " WHERE name = 'supplier_url'";
-		$sql .= " AND elementtype = 'product_fournisseur_price'";
-		$this->db->query($sql);
-
-		return $result;
+		return $this->_init(array(), $options);
 	}
 
 	/**
@@ -287,11 +285,68 @@ class modPowrSync extends DolibarrModules
 		return 1;
 	}
 
+	/**
+	 * Add missing log metadata without inventing ownership of historical entries.
+	 * Existing rows without entity remain quarantined at entity 0.
+	 *
+	 * @return int
+	 */
+	protected function upgradeLogSchema()
+	{
+		$resql = $this->db->query('SHOW COLUMNS FROM '.MAIN_DB_PREFIX.'powrsync_log');
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$columns = array();
+		while (is_object($column = $this->db->fetch_object($resql))) {
+			$columns[$column->Field] = true;
+		}
+		foreach (array('entity' => 'INTEGER NOT NULL DEFAULT 0', 'ref_fourn' => 'VARCHAR(255) NULL') as $name => $definition) {
+			if (!isset($columns[$name]) && !$this->db->query('ALTER TABLE '.MAIN_DB_PREFIX.'powrsync_log ADD COLUMN '.$name.' '.$definition)) {
+				$this->error = $this->db->lasterror();
+				return -1;
+			}
+		}
+		$resql = $this->db->query("SHOW INDEX FROM ".MAIN_DB_PREFIX."powrsync_log WHERE Key_name = 'idx_powrsync_log_entity'");
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		if (!is_object($this->db->fetch_object($resql)) && !$this->db->query('CREATE INDEX idx_powrsync_log_entity ON '.MAIN_DB_PREFIX.'powrsync_log (entity)')) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
+	}
+
+	/**
+	 * Initialize entity setting only when absent, inheriting any legacy global value.
+	 *
+	 * @return int
+	 */
+	protected function initSupplierUrlSetting()
+	{
+		global $conf;
+		$sql = "SELECT entity, value FROM ".MAIN_DB_PREFIX."const WHERE name = 'SYNC_URL_SUPPLIER_EXTRAFIELD'";
+		$sql .= ' AND entity IN (0, '.((int) $conf->entity).') ORDER BY entity DESC';
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		$value = '1';
+		while (is_object($constant = $this->db->fetch_object($resql))) {
+			if ((int) $constant->entity === (int) $conf->entity) {
+				return 1;
+			}
+			$value = (string) $constant->value;
+		}
+		return dolibarr_set_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', $value, 'yesno', 0, '', (int) $conf->entity);
+	}
+
 	public function remove($options = '')
 	{
-		require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
-		dolibarr_del_const($this->db, 'SYNC_URL_SUPPLIER_EXTRAFIELD', 0);
-
 		$sql = array();
 		return $this->_remove($sql, $options);
 	}

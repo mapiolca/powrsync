@@ -2,7 +2,7 @@
 /* Copyright (C) 2024 Votre Société — Licence GNU GPL v3 */
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
-require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.php';
+require_once __DIR__.'/powrconnectscraper.class.php';
 
 /**
  * PowrSync
@@ -12,7 +12,7 @@ require_once DOL_DOCUMENT_ROOT.'/custom/powrsync/class/powrconnectscraper.class.
  */
 class PowrSync extends CommonObject
 {
-	private const CODE_REVISION = '2026-06-29-login-retry-cookie-v3';
+	private const CODE_REVISION = '2026-10-11-entity-scope-v4';
 
 	public $element       = 'powrsync';
 	public $table_element = 'powrsync_log';
@@ -33,6 +33,28 @@ class PowrSync extends CommonObject
 		$this->db = $db;
 	}
 
+	/**
+	 * Require entity ownership before synchronization or log insertion.
+	 * An inaccessible table is treated as unavailable, never as a legacy fallback.
+	 * @param DoliDB $db Database connection
+	 * @return bool
+	 */
+	public static function isLogSchemaReady($db)
+	{
+		$result = $db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log");
+		if (!$result) {
+			return false;
+		}
+		$ready = false;
+		while (is_object($column = $db->fetch_object($result))) {
+			if ($column->Field === 'entity') {
+				$ready = true;
+			}
+		}
+		$db->free($result);
+		return $ready;
+	}
+
 	// ─── Point d'entrée principal ───────────────────────────────────────────
 
 	/**
@@ -45,7 +67,19 @@ class PowrSync extends CommonObject
 	 */
 	public function syncAllProducts($email = '', $password = '')
 	{
-		global $conf;
+		global $conf, $user;
+		if (!isModEnabled('powrsync') || !isModEnabled('product') || !isModEnabled('fournisseur')
+			|| !is_object($user) || !$user->hasRight('powrsync', 'synclog', 'write') || !empty($user->socid)) {
+			$this->error = 'PowrSync synchronization access denied';
+			$this->output = $this->error;
+			return -1;
+		}
+
+		if (!self::isLogSchemaReady($this->db)) {
+			$this->error = 'PowrSync log schema must be upgraded';
+			$this->output = $this->error;
+			return -1;
+		}
 
 		$entity = isset($conf->entity) ? (int) $conf->entity : 1;
 		dol_syslog('PowrSync cron: start syncAllProducts entity='.$entity.' code_revision='.self::CODE_REVISION.' file='.__FILE__, LOG_NOTICE);
@@ -428,6 +462,10 @@ class PowrSync extends CommonObject
 	 */
 	private function logSync($productId, $powrRef, $oldPrice, $newPrice, $status, $message)
 	{
+		if (!self::isLogSchemaReady($this->db)) {
+			$this->error = 'PowrSync log schema must be upgraded';
+			return;
+		}
 		$columns = $this->getLogColumns();
 		if (empty($columns)) {
 			return;
@@ -474,10 +512,8 @@ class PowrSync extends CommonObject
 			$fields[] = 'datec';
 			$values[] = "'".$this->db->idate(dol_now())."'";
 		}
-		if (!empty($columns['entity'])) {
-			$fields[] = 'entity';
-			$values[] = (int) $GLOBALS['conf']->entity;
-		}
+		$fields[] = 'entity';
+		$values[] = (int) $GLOBALS['conf']->entity;
 
 		if (empty($fields)) {
 			return;
@@ -497,15 +533,24 @@ class PowrSync extends CommonObject
 	 */
 	public function getLogs($limit = 100)
 	{
+		global $user;
+		if (!isModEnabled('powrsync') || !is_object($user) || !$user->hasRight('powrsync', 'synclog', 'read') || !empty($user->socid)) {
+			$this->error = 'PowrSync log access denied';
+			return array();
+		}
 		$columns = $this->getLogColumns();
+		if (empty($columns['entity'])) {
+			$this->error = 'PowrSync log schema must be upgraded';
+			return array();
+		}
 		$statusField = !empty($columns['sync_status']) ? 'l.sync_status' : 'l.status';
 
-		$sql = "SELECT l.rowid, l.fk_product, l.ref_fourn,"
+		$sql = "SELECT l.rowid, l.fk_product, ".(!empty($columns['ref_fourn']) ? 'l.ref_fourn' : "''")." AS ref_fourn,"
 			." l.old_price, l.new_price, ".$statusField." AS sync_status, l.message, l.datec,"
 			." p.ref AS product_ref, p.label AS product_label"
 			." FROM ".MAIN_DB_PREFIX."powrsync_log l"
-			." LEFT JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = l.fk_product"
-			." WHERE l.entity IN (".getEntity('product').")"
+			." LEFT JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = l.fk_product AND p.entity IN (".$this->db->sanitize(getEntity('product')).")"
+			." WHERE l.entity = ".((int) $GLOBALS['conf']->entity)
 			." ORDER BY l.datec DESC"
 			." LIMIT ".((int) $limit);
 
