@@ -71,3 +71,14 @@ PowrSyncAboutSupportValue=Contactez votre intégrateur pour le support.
 PowrSyncVisibleColumns=Colonnes visibles
 PowrSyncRecordsPerPage=Enregistrements par page
 PowrSyncSyncAllProducts=Synchroniser tous les produits
+
+PowrSyncDetectedPhp=Version PHP détectée
+PowrSyncDetectedDolibarr=Version Dolibarr détectée
+PowrSyncMinimumPhp=Version PHP minimale
+PowrSyncMinimumDolibarr=Version Dolibarr minimale
+PowrSyncTargetVersions=Versions Dolibarr ciblées
+PowrSyncUnsupportedEnvironment=Environnement inférieur au socle minimal supporté.
+PowrSyncCompatibilityScope=Les fonctions du module ciblent le socle Dolibarr v20 à v25 et PHP 8.0+. Les contrôles ciblés ne constituent pas une validation de tous les parcours. Dolibarr 25 alpha reste lié à une révision précise.
+PowrSyncNotIntegrationTested=Parcours complets non vérifiés sur une instance
+
+PowrSyncLogSchemaUpgradeRequired=Mise à jour du module nécessaire : réactivez PowrSync pour migrer les journaux avant de synchroniser les prix.

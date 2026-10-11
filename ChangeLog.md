@@ -1,5 +1,20 @@
 # ChangeLog PowrSync
 
+## À publier — compléments à la version 1.0.5
+
+- Refuse les synchronisations tant que les journaux ne permettent pas le rattachement à l’entité ; réactiver le module après mise à jour pour exécuter la migration native.
+
+- Affiche le message natif d’absence de données dans l’historique de synchronisation vide.
+
+- Isole les historiques de synchronisation dans l’entité d’exécution, ajoute les colonnes manquantes et conserve à l’écart les anciennes lignes dont l’entité est inconnue.
+- Préserve les valeurs configurées du champ URL fournisseur lors de l’activation et de la désactivation, sans réécrire les définitions de champs existantes.
+- Retire les traces de tokens et d’en-têtes d’authentification ; contrôle les permissions du cron sans élévation administrateur implicite.
+- Rétablit la pagination native de la liste et ajoute un onglet Compatibilité distinguant le socle déclaré des essais sur instance.
+
+## 1.0.5 (11/10/2026)
+
+- Restaure la vignette du module dans Dolibarr 25 alpha en fournissant aussi le nom d’image sans préfixe `object_`, tout en conservant l’image utilisée par Dolibarr v20 à v24.
+
 ## 1.0.4 (29/06/2026)
 - Corrige l'authentification depuis les travaux planifiés Dolibarr : décodage du mot de passe stocké avec `dol_encode()`, purge des cookies expirés et retry conservant le cookie de session intermédiaire après un HTTP 302.
 - Corrige le chargement de la classe native `ProductFournisseur` via `fourn/class/fournisseur.product.class.php` pour éviter le fatal sur les crons.
