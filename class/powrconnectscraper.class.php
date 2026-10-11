@@ -111,7 +111,7 @@ class PowrConnectScraper
 	 */
 	public function login($email, $password)
 	{
-		$this->debug('login() — début, user='.$email);
+		$this->debug('login() — début');
 		$this->loginState = 'none';
 
 		// Vérifie si on est déjà connecté via les cookies existants
@@ -145,7 +145,6 @@ class PowrConnectScraper
 			$hasSession = strpos($cookieContent, '__session') !== false ? 'oui' : 'non';
 			$this->debug('Cookies après GET : csrf='.$hasCsrf.', __session='.$hasSession);
 		}
-		$this->debug('CSRF cookie value : '.($csrfValue ? substr($csrfValue, 0, 30).'…' : '(non trouvé)'));
 
 		// EN: Step 2, discover login form action + hidden fields to avoid hardcoded Remix route.
 		// FR: Étape 2, détecter l'action du formulaire + champs cachés pour éviter une route Remix figée.
@@ -198,7 +197,7 @@ class PowrConnectScraper
 		}
 
 		usleep($this->requestDelay);
-		$this->debug('POST '.$postUrl.' avec username='.$email);
+		$this->debug('POST login');
 
 		// Ne pas suivre les redirections pour capturer la réponse 204
 		curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, false);
@@ -221,7 +220,6 @@ class PowrConnectScraper
 		$headers = substr($response, 0, $headerSize);
 
 		$this->debug('POST login → HTTP '.$httpCode);
-		$this->debug('Headers réponse (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
 
 		// EN: Retry once with raw csrf cookie value when server returns HTTP 500.
 		// FR: Refaire 1 tentative avec la valeur brute du cookie csrf si le serveur renvoie HTTP 500.
@@ -235,7 +233,6 @@ class PowrConnectScraper
 			$headerSize = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
 			$headers = substr($response, 0, $headerSize);
 			$this->debug('POST login retry (csrf raw) → HTTP '.$httpCode);
-			$this->debug('Headers retry (premières lignes) : '.substr(str_replace("\r\n", ' | ', $headers), 0, 500));
 		}
 
 		// Restaurer les options par défaut
@@ -369,7 +366,7 @@ class PowrConnectScraper
 	 */
 	public function getPrice($powrRef, $url = '')
 	{
-		$this->debug('getPrice() — ref='.$powrRef.', url='.$url);
+		$this->debug('getPrice() — ref='.$powrRef.', url_configured='.($url !== '' ? 'yes' : 'no'));
 
 		if (!$this->loggedIn) {
 			$this->error = 'Non authentifié';
@@ -385,7 +382,7 @@ class PowrConnectScraper
 
 		usleep($this->requestDelay);
 
-		$this->debug('GET '.$url);
+		$this->debug('GET produit');
 		curl_setopt_array($this->ch, array(
 			CURLOPT_URL     => $url,
 			CURLOPT_HTTPGET => true,
@@ -394,7 +391,7 @@ class PowrConnectScraper
 		$html     = curl_exec($this->ch);
 		$httpCode = curl_getinfo($this->ch, CURLINFO_HTTP_CODE);
 		$finalUrl = curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL);
-		$this->debug('GET produit → HTTP '.$httpCode.' — URL finale : '.$finalUrl.' — HTML length='.strlen($html).' bytes');
+		$this->debug('GET produit → HTTP '.$httpCode.' — HTML length='.strlen($html).' bytes');
 
 		if (curl_errno($this->ch)) {
 			$this->error = 'cURL erreur ref '.$powrRef.' : '.curl_error($this->ch);

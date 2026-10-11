@@ -152,8 +152,8 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 		// --- Logs de la session en cours (du plus récent au plus ancien) ---
 		$sqlLogs  = "SELECT COALESCE(p.ref, CAST(l.fk_product AS CHAR)) AS ref_product, l.ref_fourn, l.old_price, l.new_price, l.status, l.message, l.datec";
 		$sqlLogs .= " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
-		$sqlLogs .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
-		$sqlLogs .= " WHERE l.datec >= '".$db->idate($startTs)."'";
+		$sqlLogs .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product AND p.entity IN (".$db->sanitize(getEntity('product')).")";
+		$sqlLogs .= " WHERE l.entity = ".((int) $conf->entity)." AND l.datec >= '".$db->idate($startTs)."'";
 		$sqlLogs .= " ORDER BY l.datec DESC, l.rowid DESC";
 
 		$resLogs = $db->query($sqlLogs);
@@ -291,15 +291,13 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 // VUE
 // =========================================================================
 
-$page  = 0;
-$limit = 0;
-$total = 0;
+$page = max(0, GETPOSTINT('page'));
+$limit = GETPOSTINT('limit') > 0 ? GETPOSTINT('limit') : (int) $conf->liste_limit;
 
 llxHeader('', $langs->trans('PowrSyncTitle'));
 
 $object = new PowrSync($db);
 
-print_barre_liste($langs->trans('PowrSyncTitle'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', $total, $limit, $object->picto, 0, '', '', $limit);
 
 // Vérification de la configuration
 $configOk = ($fkSoc > 0 && !empty($email) && !empty($pwd));
@@ -362,7 +360,8 @@ if ($user->hasRight('powrsync', 'synclog', 'write')) {
 }
 
 // Liste des produits avec ref POwR Connect
-$products = getProductsWithPowrRef($db, $fkSoc, $sortfield, $sortorder, $search_ref_product, $search_ref_fourn);
+$total = 0;
+$products = getProductsWithPowrRef($db, $fkSoc, $sortfield, $sortorder, $search_ref_product, $search_ref_fourn, false, $limit, $page * $limit, $total);
 
 if ($products === false) {
 	print '<div class="error">'.$langs->trans('PowrSyncDbError').': '.dol_escape_htmltag($db->lasterror()).'</div>';
@@ -372,6 +371,9 @@ if ($products === false) {
 }
 
 print '<form method="GET" action="'.$_SERVER['PHP_SELF'].'">';
+print '<input type="hidden" name="sortfield" value="'.dol_escape_htmltag($sortfield).'">';
+print '<input type="hidden" name="sortorder" value="'.dol_escape_htmltag($sortorder).'">';
+print_barre_liste($langs->trans('PowrSyncTitle'), $page, $_SERVER['PHP_SELF'], $param, $sortfield, $sortorder, '', count($products), $total, $object->picto, 0, '', '', $limit);
 print '<div class="div-table-responsive">';
 print '<table class="tagtable nobottomiftotal noborder liste">';
 
@@ -400,7 +402,7 @@ print '<td class="center">'.$langs->trans('Action').'</td>';
 print '</tr>';
 
 if (empty($products)) {
-	print '<tr><td colspan="9" class="center opacitymedium">'.$langs->trans('PowrSyncNoProducts').'</td></tr>';
+	print '<tr><td colspan="9" class="center opacitymedium">'.$langs->trans('NoRecordFound').'</td></tr>';
 } else {
 	foreach ($products as $prod) {
 		$pid = (int) $prod['fk_product'];
@@ -515,7 +517,7 @@ print '</div>';
 print '</form>';
 
 print '<br><p class="opacitymedium center">';
-print $langs->trans('PowrSyncProductCount', count($products));
+print $langs->trans('PowrSyncProductCount', $total);
 print '</p>';
 
 llxFooter();
@@ -537,11 +539,12 @@ $db->close();
  * @param bool   $requireSupplierUrl
  * @param int    $limit              0 = pas de limite
  * @param int    $offset             0 = depuis le début
+ * @param int|null $total Filtered row count when requested
  * @return array|false
  */
 function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 'ASC',
 	$searchRefProduct = '', $searchRefFourn = '', $requireSupplierUrl = false,
-	$limit = 0, $offset = 0)
+	$limit = 0, $offset = 0, &$total = null)
 {
 	$sortFieldMap = array(
 		'p.ref'             => 'p.ref',
@@ -558,13 +561,13 @@ function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 
 	$sql  = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
 	$sql .= ", lastlog.datec AS last_datec, lastlog.old_price AS last_old_price, lastlog.new_price AS last_new_price, lastlog.status AS last_status, lastlog.message AS last_message";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
-	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product AND p.entity IN (".$db->sanitize(getEntity('product')).")";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
 	$sql .= " LEFT JOIN (";
 	$sql .= " SELECT l1.fk_product, l1.datec, l1.old_price, l1.new_price, l1.status, l1.message";
 	$sql .= " FROM ".MAIN_DB_PREFIX."powrsync_log AS l1";
-	$sql .= " INNER JOIN (SELECT fk_product, MAX(datec) AS maxdate FROM ".MAIN_DB_PREFIX."powrsync_log GROUP BY fk_product) AS l2 ON l2.fk_product = l1.fk_product AND l2.maxdate = l1.datec";
-	$sql .= " ) AS lastlog ON lastlog.fk_product = pfp.fk_product";
+	$sql .= " INNER JOIN (SELECT fk_product, MAX(rowid) AS maxid FROM ".MAIN_DB_PREFIX."powrsync_log WHERE entity = ".((int) $GLOBALS['conf']->entity)." GROUP BY fk_product) AS l2 ON l2.fk_product = l1.fk_product AND l2.maxid = l1.rowid";
+	$sql .= " WHERE l1.entity = ".((int) $GLOBALS['conf']->entity)." ) AS lastlog ON lastlog.fk_product = pfp.fk_product";
 	$sql .= " WHERE pfp.fk_soc = ".((int) $fkSoc);
 	$sql .= " AND pfp.entity IN (".getEntity('product').")";
 	$sql .= " AND pfp.status = 1";
@@ -581,6 +584,13 @@ function getProductsWithPowrRef($db, $fkSoc, $sortfield = 'p.ref', $sortorder = 
 		$sql .= " AND pfp.ref_fourn LIKE '%".$db->escape($searchRefFourn)."%'";
 	}
 
+	if ($total !== null) {
+		$rescount = $db->query('SELECT COUNT(*) AS total FROM ('.$sql.') AS sync_products');
+		if (!$rescount || !is_object($count = $db->fetch_object($rescount))) {
+			return false;
+		}
+		$total = (int) $count->total;
+	}
 	$sql .= " ORDER BY ".$sortfield." ".$sortorder.", pfp.rowid ASC";
 
 	if ($limit > 0) {
@@ -626,7 +636,7 @@ function getProductWithPowrRefByLineId($db, $fkSoc, $lineId)
 {
 	$sql  = "SELECT pfp.rowid AS pfp_rowid, pfp.fk_product, p.ref AS ref_product, p.label AS label_product, pfp.ref_fourn, pfp.unitprice AS unitprice, pfp.quantity, ef.supplier_url";
 	$sql .= " FROM ".MAIN_DB_PREFIX."product_fournisseur_price AS pfp";
-	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product";
+	$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = pfp.fk_product AND p.entity IN (".$db->sanitize(getEntity('product')).")";
 	$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."product_fournisseur_price_extrafields AS ef ON ef.fk_object = pfp.rowid";
 	$sql .= " WHERE pfp.rowid = ".((int) $lineId);
 	$sql .= " AND pfp.fk_soc = ".((int) $fkSoc);
@@ -671,8 +681,9 @@ function getLastLogsByProduct($db, $fkSoc)
 	$sql  = "SELECT l.fk_product, l.datec, l.old_price, l.new_price, l.status, l.message";
 	$sql .= " FROM ".MAIN_DB_PREFIX."powrsync_log l";
 	$sql .= " INNER JOIN (";
-	$sql .= " SELECT fk_product, MAX(datec) AS maxdate FROM ".MAIN_DB_PREFIX."powrsync_log GROUP BY fk_product";
-	$sql .= " ) last ON l.fk_product = last.fk_product AND l.datec = last.maxdate";
+	$sql .= " SELECT fk_product, MAX(rowid) AS maxid FROM ".MAIN_DB_PREFIX."powrsync_log WHERE entity = ".((int) $GLOBALS['conf']->entity)." GROUP BY fk_product";
+	$sql .= " ) last ON l.fk_product = last.fk_product AND l.rowid = last.maxid";
+	$sql .= " WHERE l.entity = ".((int) $GLOBALS['conf']->entity);
 
 	$resql  = $db->query($sql);
 	$result = array();

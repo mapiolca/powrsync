@@ -121,16 +121,14 @@ if ($hasRefFournColumn) {
 	if ($fkSoc > 0) {
 		$supplierUrlSelect .= " AND pfp.fk_soc = ".((int) $fkSoc);
 	}
+	$supplierUrlSelect .= " AND pfp.entity IN (".$db->sanitize(getEntity('product')).")";
 	$supplierUrlSelect .= " ORDER BY pfp.rowid DESC LIMIT 1)";
 }
 $sqlselect .= ", ".$supplierUrlSelect." AS supplier_url";
 
 $sqlfrom = " FROM ".MAIN_DB_PREFIX."powrsync_log AS l";
-$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product";
-$sqlwhere = " WHERE 1 = 1";
-if ($hasEntityColumn) {
-	$sqlwhere .= " AND l.entity IN (".getEntity('powrsync').")";
-}
+$sqlfrom .= " LEFT JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = l.fk_product AND p.entity IN (".$db->sanitize(getEntity('product')).")";
+$sqlwhere = $hasEntityColumn ? " WHERE l.entity = ".((int) $conf->entity) : " WHERE 1 = 0";
 if ($search_ref_fourn !== '' && $hasRefFournColumn) {
 	$sqlwhere .= " AND l.ref_fourn LIKE '%".$db->escape($search_ref_fourn)."%'";
 }

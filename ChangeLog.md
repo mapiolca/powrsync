@@ -1,5 +1,12 @@
 # ChangeLog PowrSync
 
+## À publier — 1.0.6
+
+- Isole les historiques de synchronisation dans l’entité d’exécution, ajoute les colonnes manquantes et conserve à l’écart les anciennes lignes dont l’entité est inconnue.
+- Préserve les valeurs configurées du champ URL fournisseur lors de l’activation et de la désactivation, sans réécrire les définitions de champs existantes.
+- Retire les traces de tokens et d’en-têtes d’authentification ; contrôle les permissions du cron sans élévation administrateur implicite.
+- Rétablit la pagination native de la liste et ajoute un onglet Compatibilité distinguant le socle déclaré des essais sur instance.
+
 ## 1.0.5 (11/10/2026)
 
 - Restaure la vignette du module dans Dolibarr 25 alpha en fournissant aussi le nom d’image sans préfixe `object_`, tout en conservant l’image utilisée par Dolibarr v20 à v24.

@@ -102,3 +102,12 @@ Chaque synchronisation est enregistrée dans `llx_powrsync_log` avec :
 - Message d'erreur si applicable
 
 Consultable via : Produits → POwR Connect - Prix → Historique
+
+
+## Mise à jour préparée 1.0.6
+
+Réactiver le module par le mécanisme natif Dolibarr pour ajouter les colonnes manquantes du journal. Les réglages et les champs supplémentaires existants sont conservés. La constante `SYNC_URL_SUPPLIER_EXTRAFIELD` est initialisée par entité uniquement si elle est absente ; une ancienne valeur globale, y compris `0` ou une chaîne vide, est conservée comme valeur initiale.
+
+Les journaux appartiennent à l’entité qui exécute la synchronisation, même pour un produit partagé. Lorsque l’ancienne table ne comporte pas de colonne `entity`, les lignes historiques restent conservées avec `entity = 0` et sont exclues des listes. Leur rattachement exige une preuve de l’entité d’exécution ; l’entité actuelle du produit ne suffit pas. Aucune donnée historique n’est supprimée et aucun rattachement automatique n’est effectué.
+
+Le compte exécutant le travail planifié doit disposer du droit de synchronisation PowrSync. La liste applique ses filtres et sa pagination en SQL. Les limites des contrôles sont détaillées dans [test/VALIDATION.md](test/VALIDATION.md).

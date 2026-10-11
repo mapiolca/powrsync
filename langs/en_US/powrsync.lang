@@ -71,3 +71,12 @@ PowrSyncAboutSupportValue=Contact your integrator for support.
 PowrSyncVisibleColumns=Visible columns
 PowrSyncRecordsPerPage=Records per page
 PowrSyncSyncAllProducts=Synchronize all products
+
+PowrSyncDetectedPhp=Detected PHP version
+PowrSyncDetectedDolibarr=Detected Dolibarr version
+PowrSyncMinimumPhp=Minimum PHP version
+PowrSyncMinimumDolibarr=Minimum Dolibarr version
+PowrSyncTargetVersions=Target Dolibarr versions
+PowrSyncUnsupportedEnvironment=Environment below the minimum supported versions.
+PowrSyncCompatibilityScope=Module features target Dolibarr v20 to v25 and PHP 8.0+. Targeted checks do not validate every workflow. Dolibarr 25 alpha remains tied to a specific revision.
+PowrSyncNotIntegrationTested=Complete workflows not tested on an instance

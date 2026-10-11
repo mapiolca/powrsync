@@ -39,7 +39,8 @@ $helpurl = '';
 
 llxHeader('', $title, $helpurl);
 
-print load_fiche_titre($langs->trans('PowrSyncAbout'), '', 'info');
+$linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?search_keyword=powrsync">'.$langs->trans('BackToModuleList').'</a>';
+print load_fiche_titre($langs->trans('PowrSyncAbout'), $linkback, 'info');
 $head = powrsyncAdminPrepareHead();
 // EN: Render the admin tabs with the bookcal pictogram to stay consistent with the setup header.
 // FR: Affiche les onglets d'administration avec le pictogramme bookcal pour rester cohérent avec la configuration.
