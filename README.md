@@ -104,7 +104,7 @@ Chaque synchronisation est enregistrée dans `llx_powrsync_log` avec :
 Consultable via : Produits → POwR Connect - Prix → Historique
 
 
-## Mise à jour préparée 1.0.6
+## Mise à jour préparée 1.0.5
 
 Réactiver le module par le mécanisme natif Dolibarr pour ajouter les colonnes manquantes du journal. Les réglages et les champs supplémentaires existants sont conservés. La constante `SYNC_URL_SUPPLIER_EXTRAFIELD` est initialisée par entité uniquement si elle est absente ; une ancienne valeur globale, y compris `0` ou une chaîne vide, est conservée comme valeur initiale.
 

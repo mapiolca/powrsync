@@ -1,4 +1,4 @@
-# Validation de la préparation 1.0.6
+# Validation de la préparation 1.0.5
 
 Contrôles du 2026-10-11, PHP 8.5.7. Aucun déploiement ni appel POwR Connect effectué.
 

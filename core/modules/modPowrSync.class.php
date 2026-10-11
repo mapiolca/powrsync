@@ -32,7 +32,7 @@ class modPowrSync extends DolibarrModules
 		$this->editor_url     = 'https://lesmetiersdubatiment.fr';
 		$this->editor_squarred_logo = 'lesmetiersdubatiment.png@powrsync';					// Must be image filename into the module/img directory followed with @modulename. Example: 'myimage.png@powrsync'
 
-		$this->version        = '1.0.6';
+		$this->version        = '1.0.5';
 		$this->const_name     = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto          = 'powrconnect@powrsync';
 

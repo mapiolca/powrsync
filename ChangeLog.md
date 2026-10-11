@@ -1,6 +1,6 @@
 # ChangeLog PowrSync
 
-## À publier — 1.0.6
+## À publier — compléments à la version 1.0.5
 
 - Isole les historiques de synchronisation dans l’entité d’exécution, ajoute les colonnes manquantes et conserve à l’écart les anciennes lignes dont l’entité est inconnue.
 - Préserve les valeurs configurées du champ URL fournisseur lors de l’activation et de la désactivation, sans réécrire les définitions de champs existantes.
