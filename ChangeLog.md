@@ -1,5 +1,9 @@
 # ChangeLog PowrSync
 
+## 1.0.5 (11/10/2026)
+
+- Restaure la vignette du module dans Dolibarr 25 alpha en fournissant aussi le nom d’image sans préfixe `object_`, tout en conservant l’image utilisée par Dolibarr v20 à v24.
+
 ## 1.0.4 (29/06/2026)
 - Corrige l'authentification depuis les travaux planifiés Dolibarr : décodage du mot de passe stocké avec `dol_encode()`, purge des cookies expirés et retry conservant le cookie de session intermédiaire après un HTTP 302.
 - Corrige le chargement de la classe native `ProductFournisseur` via `fourn/class/fournisseur.product.class.php` pour éviter le fatal sur les crons.
