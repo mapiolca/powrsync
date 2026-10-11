@@ -2,6 +2,8 @@
 
 ## À publier — compléments à la version 1.0.5
 
+- Affiche le message natif d’absence de données dans l’historique de synchronisation vide.
+
 - Isole les historiques de synchronisation dans l’entité d’exécution, ajoute les colonnes manquantes et conserve à l’écart les anciennes lignes dont l’entité est inconnue.
 - Préserve les valeurs configurées du champ URL fournisseur lors de l’activation et de la désactivation, sans réécrire les définitions de champs existantes.
 - Retire les traces de tokens et d’en-têtes d’authentification ; contrôle les permissions du cron sans élévation administrateur implicite.

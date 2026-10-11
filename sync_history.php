@@ -263,6 +263,9 @@ if (!empty($arrayfields['message']['checked'])) {
 print '</tr>';
 
 if ($resql) {
+	if ($num === 0) {
+		print '<tr class="oddeven"><td colspan="'.((int) $nbVisibleColumns + 1).'"><span class="opacitymedium">'.$langs->trans('NoRecordFound').'</span></td></tr>';
+	}
 	while ($obj = $db->fetch_object($resql)) {
 		$oldPrice = ($obj->old_price !== null ? (float) $obj->old_price : null);
 		$newPrice = ($obj->new_price !== null ? (float) $obj->new_price : null);
