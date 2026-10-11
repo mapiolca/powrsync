@@ -31,3 +31,16 @@ Déploiement via le Git Control cPanel du checkout directement servi : branche `
 Blocages et limites : le refus HTTP 401 empêche de valider la récupération et l'écriture d'un prix réel. La collision préexistante d'identifiant 450013 entre PowrSync et EklorSync reste présente : l'activation ciblée de PowrSync fonctionne, mais ceci ne prouve pas l'absence de collision des permissions et ne satisfait pas le critère d'unicité AGENTS.md. EklorSync est exclu des modifications.
 
 Restent non exécutés : succès de synchronisation fournisseur, cron global (limité par l'autorisation aux seules données de recette), comptes standard/externes avec droits partiels, restauration exhaustive des extrafields personnalisés, migration MySQL/MariaDB avec échecs injectés, PHP 8.0 et instances réelles v20 à v24. La cible déclarée demeure v20–v25 ; cette recette ciblée ne certifie pas tous les parcours. PHPStan reste non exécuté faute d'outillage.
+
+## Relance de la recette POwR Connect — 2026-10-11 à 19:07 (Europe/Paris)
+
+Essai réel sur la même instance et dans TEST 1, version du module `1.0.5`, checkout déployé `af979853b32a66df0e2b229f447cdab2c2955fce` (documentation uniquement depuis le commit fonctionnel `e9178a1ecde67f2deb6e6293348f924cb929e78a`). Aucun nouveau code fonctionnel déployé pour cette relance. PowrSync était actif après rechargement de la liste native des modules ; cet état initial de la relance est conservé.
+
+| Scénario exécuté | Résultat observé |
+|---|---|
+| Première synchronisation individuelle du tarif de recette id produit 65 | Succès : prix fournisseur passé de 1,23 € à 709,77 € HT ; message « Prix mis à jour », montant relu dans la fiche native des prix d'achat |
+| Second passage sur le même tarif | Succès : statut « À jour », prix maintenu à 709,77 € HT |
+| Journal de synchronisation | Deux entrées à 19:07 : « Mis à jour » (1,23 → 709,77 ; différence 708,54) puis « À jour » (709,77 → 709,77) ; ancienne erreur HTTP 401 conservée |
+| Tarifs préexistants | SMA_BORNE 900,95 €, SMA_EVC-PDSTL-2-20 725,44 €, SUNA0SG0116 5 000,00 € inchangés ; aucune synchronisation globale ni exécution de cron |
+
+Le blocage HTTP 401 du premier essai ne se reproduit plus. La cause de sa disparition n'a pas été déterminée ; aucune modification des identifiants ou des réglages n'a été effectuée par l'agent pendant cette relance. Le succès de récupération et d'écriture du prix est désormais vérifié sur ce seul tarif. Le second passage valide la stabilité du prix, sans constituer un audit de tous les effets secondaires possibles. Le produit de recette et son tarif sont conservés à 709,77 € HT, entité courante TEST 1, module actif comme au début de la relance. Les autres limites énoncées ci-dessus restent applicables, notamment les versions réelles v20–v24, le cron, les droits partiels et PHPStan.
