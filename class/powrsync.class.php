@@ -33,6 +33,28 @@ class PowrSync extends CommonObject
 		$this->db = $db;
 	}
 
+	/**
+	 * Require entity ownership before synchronization or log insertion.
+	 * An inaccessible table is treated as unavailable, never as a legacy fallback.
+	 * @param DoliDB $db Database connection
+	 * @return bool
+	 */
+	public static function isLogSchemaReady($db)
+	{
+		$result = $db->query("SHOW COLUMNS FROM ".MAIN_DB_PREFIX."powrsync_log");
+		if (!$result) {
+			return false;
+		}
+		$ready = false;
+		while (is_object($column = $db->fetch_object($result))) {
+			if ($column->Field === 'entity') {
+				$ready = true;
+			}
+		}
+		$db->free($result);
+		return $ready;
+	}
+
 	// ─── Point d'entrée principal ───────────────────────────────────────────
 
 	/**
@@ -49,6 +71,12 @@ class PowrSync extends CommonObject
 		if (!isModEnabled('powrsync') || !isModEnabled('product') || !isModEnabled('fournisseur')
 			|| !is_object($user) || !$user->hasRight('powrsync', 'synclog', 'write') || !empty($user->socid)) {
 			$this->error = 'PowrSync synchronization access denied';
+			$this->output = $this->error;
+			return -1;
+		}
+
+		if (!self::isLogSchemaReady($this->db)) {
+			$this->error = 'PowrSync log schema must be upgraded';
 			$this->output = $this->error;
 			return -1;
 		}
@@ -434,6 +462,10 @@ class PowrSync extends CommonObject
 	 */
 	private function logSync($productId, $powrRef, $oldPrice, $newPrice, $status, $message)
 	{
+		if (!self::isLogSchemaReady($this->db)) {
+			$this->error = 'PowrSync log schema must be upgraded';
+			return;
+		}
 		$columns = $this->getLogColumns();
 		if (empty($columns)) {
 			return;
@@ -480,10 +512,8 @@ class PowrSync extends CommonObject
 			$fields[] = 'datec';
 			$values[] = "'".$this->db->idate(dol_now())."'";
 		}
-		if (!empty($columns['entity'])) {
-			$fields[] = 'entity';
-			$values[] = (int) $GLOBALS['conf']->entity;
-		}
+		$fields[] = 'entity';
+		$values[] = (int) $GLOBALS['conf']->entity;
 
 		if (empty($fields)) {
 			return;

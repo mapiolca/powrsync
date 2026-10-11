@@ -30,6 +30,10 @@ $sortorder           = GETPOST('sortorder', 'aZ09comma') ? GETPOST('sortorder', 
 $search_ref_product  = trim(GETPOST('search_ref_product', 'alphanohtml'));
 $search_ref_fourn    = trim(GETPOST('search_ref_fourn', 'alphanohtml'));
 
+if (!PowrSync::isLogSchemaReady($db)) {
+	accessforbidden($langs->trans('PowrSyncLogSchemaUpgradeRequired'));
+}
+
 $tempDir = !empty($conf->powrsync->dir_temp) ? $conf->powrsync->dir_temp : sys_get_temp_dir();
 $scraper = new PowrConnectScraper($tempDir);
 
@@ -747,6 +751,11 @@ function syncOneSupplierProductPrice($db, $scraper, $productRow, $fkSoc, $user, 
 {
 	global $langs;
 
+	if (!PowrSync::isLogSchemaReady($db)) {
+		$scraper->error = $langs->trans('PowrSyncLogSchemaUpgradeRequired');
+		return -1;
+	}
+
 	$powrRef      = $productRow['ref_fourn'];
 	$url          = !empty($productRow['supplier_url']) ? $productRow['supplier_url'] : '';
 	$productId    = (int) $productRow['fk_product'];
@@ -899,6 +908,9 @@ function forceSupplierPriceVatRate($db, $priceLineId, $productId, $fkSoc, $powrR
  */
 function insertPowrSyncLog($db, $productRow, $user, $status, $oldPrice, $newPrice, $message)
 {
+	if (!PowrSync::isLogSchemaReady($db)) {
+		return;
+	}
 	static $availableColumns = null;
 
 	if ($availableColumns === null) {
@@ -955,10 +967,8 @@ function insertPowrSyncLog($db, $productRow, $user, $status, $oldPrice, $newPric
 		$fields[] = 'fk_user_creat';
 		$values[] = (int) $user->id;
 	}
-	if (!empty($availableColumns['entity'])) {
-		$fields[] = 'entity';
-		$values[] = (int) $GLOBALS['conf']->entity;
-	}
+	$fields[] = 'entity';
+	$values[] = (int) $GLOBALS['conf']->entity;
 	if (!empty($availableColumns['datec'])) {
 		$fields[] = 'datec';
 		$values[] = "'".$db->idate(dol_now())."'";

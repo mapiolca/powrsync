@@ -80,3 +80,5 @@ PowrSyncTargetVersions=Target Dolibarr versions
 PowrSyncUnsupportedEnvironment=Environment below the minimum supported versions.
 PowrSyncCompatibilityScope=Module features target Dolibarr v20 to v25 and PHP 8.0+. Targeted checks do not validate every workflow. Dolibarr 25 alpha remains tied to a specific revision.
 PowrSyncNotIntegrationTested=Complete workflows not tested on an instance
+
+PowrSyncLogSchemaUpgradeRequired=Module upgrade required: reactivate PowrSync to migrate the logs before synchronizing prices.

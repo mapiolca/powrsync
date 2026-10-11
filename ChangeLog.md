@@ -2,6 +2,8 @@
 
 ## À publier — compléments à la version 1.0.5
 
+- Refuse les synchronisations tant que les journaux ne permettent pas le rattachement à l’entité ; réactiver le module après mise à jour pour exécuter la migration native.
+
 - Affiche le message natif d’absence de données dans l’historique de synchronisation vide.
 
 - Isole les historiques de synchronisation dans l’entité d’exécution, ajoute les colonnes manquantes et conserve à l’écart les anciennes lignes dont l’entité est inconnue.
